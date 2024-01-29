@@ -76,8 +76,9 @@ $ yt-dlp -f bestaudio --embed-thumbnail --embed-metadata --yes-playlist 'https:/
 
 ## TV, Jupiter, JupiterPluss, ERR Arhiiv
 
-## Download movie with two audio streams, 'et' and 'ru', all available
-## subs and metadata and thumbnail and embed them all in a matroska container
+## Download movie with two audio streams, 'et' and 'ru', video stream
+## 1280x720, all available subs, metadata and thumbnail and embed them
+## all in a matroska container
 
-$ yt-dlp -f 136+134+et+ru --audio-multistreams --video-multistreams --merge-output-format mkv --sub-langs all --embed-subs --embed-metadata --embed-thumbnail 'https://jupiter.err.ee/1608130759/maekula-piimamees'
+$ yt-dlp -f 136+et+ru --audio-multistreams --video-multistreams --merge-output-format mkv --sub-langs all --embed-subs --embed-metadata --embed-thumbnail 'https://jupiter.err.ee/1608130759/maekula-piimamees'
 ```
