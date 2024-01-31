@@ -1,4 +1,4 @@
-This is a plugin for [yt-dlp](https://github.com/yt-dlp/yt-dlp) that adds support for [err.ee](https://www.err.ee/) and its various subchannels:
+This is a plugin for [yt-dlp](https://github.com/yt-dlp/yt-dlp) that adds support for [err.ee](https://www.err.ee/) and its various subchannels and portals:
 
 * [etv.err.ee](https://etv.err.ee)
 * [etv2.err.ee](https://etv2.err.ee)
@@ -24,7 +24,7 @@ See [installing yt-dlp plugins](https://github.com/yt-dlp/yt-dlp#installing-plug
 
 ## Supported features
 
-All provided audio, video and subtitle streams can be downloaded, thumbnails and chapters too if available. Series are handled as playlists.
+All audio, video and subtitle streams that are not DRM-protected can be downloaded, thumbnails and chapters too if available. Series are handled as playlists.
 
 ## Authentication options
 
@@ -47,38 +47,52 @@ jupiter.err.ee sometimes gives strange languages for audio streams, and extracto
 # Embedded video in a news aricle
 
 ## Print filename and description, list all available formats in
-## a nicely formatted table
+## a nicely formatted table.
 
 $ yt-dlp --print filename --print description --print formats_table 'https://kultuur.err.ee/1609231323/david-vseviov-raamatud-tuleb-lahti-seletada-mitte-ara-keelata'
 
 ## Download video stream '136' and audio stream 'unknown' and rename
-## 'unknown' to 'et', embed metadata and thumbnail if available
+## 'unknown' to 'et', embed metadata and thumbnail if available.
 
 $ yt-dlp -f 136+et --extractor-args 'err:unknown=et' --embed-metadata --embed-thumbnail 'https://kultuur.err.ee/1609231323/david-vseviov-raamatud-tuleb-lahti-seletada-mitte-ara-keelata'
 
 ## Radio episodes and podcasts
 
-## List all available formats
+## List all available formats.
 
 $ yt-dlp --list-formats 'https://vikerraadio.err.ee/795251/linnukool-mailopu-helid' 
 
-## Download audio stream format '142', embed metadata and thumbnail
+## Download audio stream format '142', embed metadata and thumbnail.
 
 $ yt-dlp -f 142 --embed-thumbnail --embed-metadata 'https://vikerraadio.err.ee/795251/linnukool-mailopu-helid'
 
-## Download all episodes
+## Download all episodes.
 
 $ yt-dlp -f bestaudio --embed-thumbnail --embed-metadata --yes-playlist 'https://klassikaraadio.err.ee/arhiiv/album'
 
-## Download all episodes of a podcast this one belongs to
+## Download all episodes of a podcast this one belongs to.
 
 $ yt-dlp -f bestaudio --embed-thumbnail --embed-metadata --yes-playlist 'https://r4.err.ee/1609221212/razbor-poljotov'
 
 ## TV, Jupiter, JupiterPluss, ERR Arhiiv
 
-## Download movie with two audio streams, 'et' and 'ru', video stream
-## 1280x720, all available subs, metadata and thumbnail and embed them
-## all in a matroska container
+## Check available formats of a documentary film.
 
-$ yt-dlp -f 136+et+ru --audio-multistreams --video-multistreams --merge-output-format mkv --sub-langs all --embed-subs --embed-metadata --embed-thumbnail 'https://jupiter.err.ee/1608130759/maekula-piimamees'
+$ yt-dlp --list-formats https://arhiiv.err.ee/video/vaata/toonela-lind-must-toonekurg
+
+## Now download it with default format selection, embedded metadata and
+## thumbnail, replace 'unknown' audio stream label with 'et', use output
+## template to get a nice readable filename
+
+$ yt-dlp --extractor-args 'err:unknown=et' --embed-thumbnail --embed-metadata --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vaata/toonela-lind-must-toonekurg
+
+## List all episodes of a series, their available formats and subtitles.
+
+$ yt-dlp --print filename --print formats_table --print subtitles_table https://arhiiv.err.ee/video/vestlusi-vene-kultuuriloost-juri-lotman
+
+## Download all episodes of a series, video format '136', audio 'ru'
+## and subtitles 'et' and embed them into an mkv file using a simple
+## output template. Beware, there are 32 one of them!
+
+$ yt-dlp -f 136+ru --sub-langs et --embed-subs --embed-thumbnail --embed-metadata --merge-output-format mkv --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vestlusi-vene-kultuuriloost-juri-lotman
 ```

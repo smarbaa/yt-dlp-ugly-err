@@ -49,6 +49,8 @@ from yt_dlp.utils import (
 #
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
+#   FIXME   Change extractor-arguments prefix to uglyerr.
+#   FIXME   Change extractor names to UglyERR.
 
 
 def json_find_node(obj, criteria):
@@ -1791,13 +1793,8 @@ class ERRArhiivIE(ERRTVIE):
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))
 
-            if (not json_has_value(info, 'entries')
-                    or len(list(filter(lambda x: x['id'] == video_id, info['entries']))) == 0):
-                entry = self._extract_entry(page)
-                if json_has_value(info, 'entries'):
-                    info['entries'].append(entry)
-                else:
-                    info.update(entry)
+            if not json_has_value(info, 'entries'):
+                info.update(self._extract_entry(page))
         else:
             error_msg = 'No id available'
             self.report_warning(error_msg)
