@@ -92,7 +92,7 @@ $ yt-dlp --print filename --print formats_table --print subtitles_table https://
 
 ## Download all episodes of a series, video format '136', audio 'ru'
 ## and subtitles 'et' and embed them into an mkv file using a simple
-## output template. Beware, there are 32 one of them!
+## output template. Beware, there are 32 of them!
 
 $ yt-dlp -f 136+ru --sub-langs et --embed-subs --embed-thumbnail --embed-metadata --merge-output-format mkv --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vestlusi-vene-kultuuriloost-juri-lotman
 ```
