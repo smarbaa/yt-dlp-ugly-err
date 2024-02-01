@@ -9,6 +9,7 @@ from math import log10, floor, ceil
 from datetime import date, datetime
 from urllib.error import HTTPError
 
+from yt_dlp.utils.traversal import traverse_obj
 from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.utils import (
     ExtractorError,
@@ -18,6 +19,9 @@ from yt_dlp.utils import (
     clean_html,
     sanitize_url,
     urlencode_postdata,
+    int_or_none,
+    str_or_none,
+    url_or_none,
 )
 
 #   ## Supported Features
@@ -49,6 +53,7 @@ from yt_dlp.utils import (
 #
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
+#   FIXME   Check for mpd manifest too.
 #   FIXME   Change extractor-arguments prefix to uglyerr.
 #   FIXME   Change extractor names to UglyERR.
 
@@ -175,6 +180,8 @@ class _ERRBaseIE(InfoExtractor):
             },
         },
     }
+    _FORMAT_COUNTERS = {}
+    _ERR_URL_SET = set()
 
     def _real_initialize(self):
         locale.setlocale(locale.LC_TIME, 'et_EE.UTF-8')
@@ -182,6 +189,17 @@ class _ERRBaseIE(InfoExtractor):
     @staticmethod
     def _lang_to_iso639(lang):
         return _ERRBaseIE._LANG2ISO639_TBL.get(lang.lower(), lang)
+
+    def _init_format_counters(self):
+        self._FORMAT_COUNTERS.clear()
+
+    def _next_format_postfix(self, format_id):
+        '''Increments counter associated to format_id, and returns "-counter"
+        if counter > 0, otherwise returns a empty string. '''
+        counter = (self._FORMAT_COUNTERS[format_id] + 1) if (
+            format_id in self._FORMAT_COUNTERS) else 0
+        self._FORMAT_COUNTERS[format_id] = counter
+        return '' if counter == 0 else '-%d' % counter
 
     def _extract_subtitles(self, obj, lang_property='name', url_prefix=''):
         subtitles = {}
@@ -199,17 +217,53 @@ class _ERRBaseIE(InfoExtractor):
                 format_desc['ext'], format_desc['height'])
             if json_has_value(self._FORMAT_ID_TBL, key):
                 return json_get_value(self._FORMAT_ID_TBL, key)
-        elif (format_desc.get('vcodec', 'none') == 'none'
-                and format_desc.get('acodec', 'none') != 'none'):
-            if 'tbr' in format_desc:
-                key = 'audio.%s.%dk' % (
-                    format_desc['ext'], format_desc['tbr'])
-                if json_has_value(self._FORMAT_ID_TBL, key):
-                    return json_get_value(self._FORMAT_ID_TBL, key)
         return format_desc['format_id']
 
-    def _extract_formats(self, master_url, video_id, headers=None):
-        formats, _ = self._extract_formats_and_subtitles(master_url, video_id, headers=None)
+    def _sanitize_formats_and_subtitles(self, formats, subtitles):
+        for format in formats:
+            if (format.get('vcodec', 'none') == 'none'):
+                if format.get('language', 'ch') == 'ch':
+                    # Chamoru [ch] extremely unlikely, seems to mean
+                    # 'original'.
+                    format['language'] = 'original'
+                    format['format_note'] = 'Original'
+                elif format.get('language', None) is None:
+                    format['language'] = 'unknown'
+                    format['format_note'] = 'Unknown'
+                elif format.get('language', '') == 'nl':
+                    # Nederlands [nl] seems to mean consistently
+                    # 'et for visually impaired'.
+                    format['language'] = 'et_vis_imp'
+                    format['format_note'] = 'Eesti vaegnägijatele'
+
+                lst = self._configuration_arg(format['language'], ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
+                if len(lst) > 0:
+                    format['language'] = str(lst[0])
+
+                format['format_id'] = '%s%s' % (
+                    format['language'],
+                    self._next_format_postfix(format['language']))
+
+            format['format_id'] = self._assign_format_id(format)
+
+            if format.get('vcodec', 'none') != 'none':
+                format['format_id'] = '%s%s' % (
+                    format['format_id'],
+                    self._next_format_postfix(format['format_id']))
+                format['format_note'] = '%dp' % format['height']
+                format['format'] = '%(format_id)s - %(width)dx%(height)d (%(format_note)s)' % format
+
+        subs = {}
+        for lang, subtitle in subtitles.items():
+            lang = 'et_hearing_impaired' if lang == 'und' else lang
+            lst = self._configuration_arg(lang.lower(), ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
+            lang = lst[0] if len(lst) > 0 else lang
+            subs[lang] = subtitle
+
+        return formats, subs
+
+    def _extract_formats(self, master_url, video_id):
+        formats, _ = self._extract_formats_and_subtitles(master_url, video_id)
         return formats
 
     def _extract_formats_and_subtitles(self, master_url, video_id, headers=None):
@@ -223,106 +277,11 @@ class _ERRBaseIE(InfoExtractor):
                     'master url links to nonexistent resource \'%s\'' %
                     master_url)
             raise ex
-
-        formats = []
-        languages = dict()
-        for m3u8_format in m3u8_formats:
-            if not m3u8_format.get('ext', None):
-                mobj = re.search(r'\.(\w{3})/', m3u8_format['url'])
-                if mobj:
-                    m3u8_format['ext'] = mobj.group(1)
-                else:
-                    m3u8_format['ext'] = 'mp4' if m3u8_format[
-                        'vcodec'] != 'none' else 'm4a'
-            if (m3u8_format.get('vcodec', 'none') == 'none'
-                    and m3u8_format.get('acodec', 'none') == 'none'
-                    and m3u8_format.get('format_id', '').startswith('audio')):
-                m3u8_format['ext'] = 'm4a'
-                if m3u8_format.get('language', 'ch') == 'ch':
-                    # Chamoru [ch] extremely unlikely, seems to mean
-                    # 'original'.
-                    m3u8_format['language'] = 'original'
-                    m3u8_format['format_note'] = 'Original'
-                elif m3u8_format.get('language', None) is None:
-                    m3u8_format['language'] = 'unknown'
-                    m3u8_format['format_note'] = 'Unknown'
-                elif m3u8_format.get('language', '') == 'nl':
-                    # Nederlands [nl] seems to mean consistently
-                    # 'et for visually impaired'.
-                    m3u8_format['language'] = 'et visually impaired'
-                    m3u8_format['format_note'] = 'Eesti vaegnägijatele'
-
-                lst = self._configuration_arg(m3u8_format['language'], ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
-                if len(lst) > 0:
-                    m3u8_format['language'] = str(lst[0])
-
-                lang_idx = (languages[m3u8_format['language']] + 1) if (
-                    m3u8_format['language'] in languages) else 0
-                languages[m3u8_format['language']] = lang_idx
-
-                if lang_idx > 0:
-                    m3u8_format['format_id'] = '%s-%d' % (m3u8_format['language'], lang_idx)
-                else:
-                    m3u8_format['format_id'] = '%s' % m3u8_format['language']
-
-            m3u8_format['format_id'] = self._assign_format_id(m3u8_format)
-
-            if m3u8_format.get('vcodec', 'none') == 'none':
-                m3u8_format['format'] = '%(format_id)s - audio only' % m3u8_format
-
-            if m3u8_format.get('vcodec', 'none') != 'none':
-                m3u8_format['format_note'] = '%dp' % m3u8_format['height']
-                m3u8_format['format'] = '%(format_id)s - %(width)dx%(height)d (%(format_note)s)' % m3u8_format
-            formats.append(m3u8_format)
-
-        subtitles = {}
-        for lang, m3u8_subtitle in m3u8_subtitles.items():
-            lang = 'et_hearing_impaired' if lang == 'und' else lang
-            lst = self._configuration_arg(lang.lower(), ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
-            lang = lst[0] if len(lst) > 0 else lang
-            subtitles[lang] = m3u8_subtitle
-
-        return formats, subtitles
+        return self._sanitize_formats_and_subtitles(m3u8_formats, m3u8_subtitles)
 
     def _extract_ids(self, url):
         mobj = re.match(type(self)._VALID_URL, url)
         return mobj.groupdict()
-
-    def _extract_html_metadata(self, webpage):
-        info = {}
-        info['title'] = (
-            self._og_search_title(webpage)
-            or self._html_search_meta('twitter:title', webpage)
-            or self._html_search_regex(
-                r'<head>[^<]*<title>([^|]+)[^<]*?</title>',
-                webpage,
-                'title',
-                flags=re.DOTALL))
-        # Sometimes title would still contain suffixes ' | Vikerraadio | ERR '
-        info['title'] = info['title'].split('|')[0].strip().strip('.')
-        if not info['title']:
-            raise ExtractorError('Couldn\'t extract title')
-        info['title'] = sanitize_title(info['title'])
-        info['description'] = (
-            self._html_search_meta('description', webpage)
-            or self._og_search_description(webpage)
-            or self._html_search_meta('twitter:description', webpage))
-        # Sometimes description too would still contain suffixes ' | Vikerraadio | ERR '
-        info['description'] = info['description'].split('|')[0].strip()
-        info['thumbnail'] = self._og_search_thumbnail(webpage)
-
-        info['creator'] = sanitize_title(self._html_search_meta('author', webpage))
-        info['tags'] = self._html_search_meta('keywords', webpage, default=None)
-        if info['tags']:
-            info['tags'] = info['tags'].split(',')
-
-        info['categories'] = self._html_search_meta(
-            'article:section', webpage, default=None)
-        if info['categories']:
-            info['categories'] = info['categories'].split(',')
-        info['timestamp'] = parse_iso8601(
-            self._html_search_meta('article:published_time', webpage))
-        return info
 
     def _debug_message(self, msg):
         """Writes debug message only if verbose flag is set"""
@@ -475,7 +434,44 @@ class ERRNewsIE(_ERRBaseIE):
             info['entries'] = entries
         return info
 
+    def _extract_html_metadata(self, webpage):
+        info = {}
+        info['title'] = (
+            self._og_search_title(webpage)
+            or self._html_search_meta('twitter:title', webpage)
+            or self._html_search_regex(
+                r'<head>[^<]*<title>([^|]+)[^<]*?</title>',
+                webpage,
+                'title',
+                flags=re.DOTALL))
+        # Sometimes title would still contain suffixes ' | Vikerraadio | ERR '
+        info['title'] = info['title'].split('|')[0].strip().strip('.')
+        if not info['title']:
+            raise ExtractorError('Couldn\'t extract title')
+        info['title'] = sanitize_title(info['title'])
+        info['description'] = (
+            self._html_search_meta('description', webpage)
+            or self._og_search_description(webpage)
+            or self._html_search_meta('twitter:description', webpage))
+        # Sometimes description too would still contain suffixes ' | Vikerraadio | ERR '
+        info['description'] = info['description'].split('|')[0].strip()
+        info['thumbnail'] = self._og_search_thumbnail(webpage)
+
+        info['creator'] = sanitize_title(self._html_search_meta('author', webpage))
+        info['tags'] = self._html_search_meta('keywords', webpage, default=None)
+        if info['tags']:
+            info['tags'] = info['tags'].split(',')
+
+        info['categories'] = self._html_search_meta(
+            'article:section', webpage, default=None)
+        if info['categories']:
+            info['categories'] = info['categories'].split(',')
+        info['timestamp'] = parse_iso8601(
+            self._html_search_meta('article:published_time', webpage))
+        return info
+
     def _real_extract(self, url):
+        self._init_format_counters()
         info = dict()
         url_dict = self._extract_ids(url)
         video_id = url_dict['id']
@@ -515,7 +511,6 @@ class ERRNewsIE(_ERRBaseIE):
 
 class ERRTVIE(_ERRBaseIE):
     IE_DESC = 'etv.err.ee, etv2.err.ee, etvpluss.err.ee, lasteekraan.err.ee'
-    _ERR_URL_SET = set()
     _ERR_API_GET_CONTENT = '%(prefix)s/api/tv/getTvPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
     _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(root_content_id)s&periodStart=0&periodEnd=0&fullData=1'
@@ -676,11 +671,11 @@ class ERRTVIE(_ERRBaseIE):
 
     def _rewrite_url(self, url):
         """Rewrites geoblocked url to contain login token and to always use
-        https protocol."""
+        https protocol. Leaves the url unchanged, if not logged in."""
 
-        if not self._is_logged_in():
-            raise ExtractorError('This video is geoblocked, login required.', expected=True)
-        return re.sub(r'https?:(//[^/]+/)', r'https:\g<1>%(atlId)s/' % self._ERR_LOGIN_DATA['user'], url)
+        return url if not self._is_logged_in() else re.sub(
+            r'https?:(//[^/]+/)',
+            r'https:\g<1>%(atlId)s/' % self._ERR_LOGIN_DATA['user'], url)
 
     def _extract_thumbnails(self, show_data, key, max_side=400, min_side=0):
         """Generator for extracting images from a json structure"""
@@ -714,8 +709,9 @@ class ERRTVIE(_ERRBaseIE):
         return info
 
     def _extract_medias(self, obj, video_id):
-        """Extracts url, formats, subtitles"""
+        """Extracts formats, subtitles"""
         info = {}
+        formats, subtitles = [], {}
         for media in obj['medias']:
             if json_has_value(media, 'restrictions.geoBlock'):
                 info['geoblocked'] = json_get_value(media, 'restrictions.geoBlock')
@@ -726,28 +722,35 @@ class ERRTVIE(_ERRBaseIE):
             else:
                 info['drm'] = False
             if info['drm']:
-                raise ExtractorError('This video is DRM protected.',
-                                     video_id=video_id, expected=True)
-            if json_has_value(media, 'src.hls'):
-                info['url'] = sanitize_url(media['src']['hls'])
-                if info['geoblocked']:
-                    info['url'] = self._rewrite_url(info['url'])
+                self.report_drm(video_id)
             # media_type can be video/audio, for debugging only
             info['media_type'] = media['type']
-            # subtitles
-            if json_has_value(media, 'subtitles'):
-                info['subtitles'] = self._extract_subtitles(media)
 
             if json_has_value(media, 'headingEt'):
                 # A good candidate to extract 'episode', but rarely available.
                 info['title'] = media['headingEt']
 
-        if 'url' in info:
-            headers = self._get_request_headers(info['url'], ['Referer', 'Origin'])
-            info['formats'], subtitles = self._extract_formats_and_subtitles(info['url'], video_id, headers=headers)
-            if subtitles:
-                # Only override when available
-                info['subtitles'] = subtitles
+            if url := traverse_obj(media,
+                ('src', 'hls', {url_or_none}, {sanitize_url},
+                    {lambda x: self._rewrite_url(x)})):
+                fmts, subs = self._sanitize_formats_and_subtitles(
+                    *self._extract_m3u8_formats_and_subtitles(
+                        url, video_id, 'mp4', m3u8_id='hls', fatal=False))
+                formats.extend(fmts)
+                self._merge_subtitles(subs, target=subtitles)
+
+            if url := traverse_obj(media,
+                ('src', 'dash', {url_or_none}, {sanitize_url},
+                    {lambda x: self._rewrite_url(x)})):
+                fmts, subs = self._sanitize_formats_and_subtitles(
+                    *self._extract_mpd_formats_and_subtitles(
+                        url, video_id, mpd_id='dash', fatal=False))
+                formats.extend(fmts)
+                self._merge_subtitles(subs, target=subtitles)
+
+        info['formats'] = formats
+        info['subtitles'] = subtitles
+        self._dump_json(obj, msg='OBJ', filename="DEBUG")
         return info
 
     def _extract_entry(self, obj, channel=None, extract_medias=True, extract_thumbnails=True):
@@ -995,6 +998,7 @@ class ERRTVIE(_ERRBaseIE):
             }))
 
     def _real_extract(self, url):
+        self._init_format_counters()
         info = dict()
         url_dict = self._extract_ids(url)
         if url_dict['id']:
@@ -1373,18 +1377,12 @@ class ERRRadioIE(ERRTVIE):
     }]
 
 
-class ERRArhiivIE(ERRTVIE):
+class ERRArhiivIE(_ERRBaseIE):
     IE_DESC = 'arhiiv.err.ee: archived TV and radio shows, movies and documentaries produced in ETV (Estonia)'
-    _ERR_API_GET_CONTENT = '%(prefix)s/api/v1/content/%(channel)s/%(id)s'
-    _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
-    _ERR_API_GET_SERIES = '%(prefix)s/api/v1/series/%(channel)s/%(playlist_id)s'
-    _ERR_API_GET_SERIES_LIMIT = 500
-    _ERR_API_EPISODE_URL = '%(prefix)s/%(channel)s/vaata/%(id)s'
-    _ERR_LOGIN_SUPPORTED = False
     _NETRC_MACHINE = None
-    _ERR_CHANNELS = r'video|audio'
+    _CHANNELS = r'video|audio'
     _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://arhiiv\.err\.ee)/(?P<channel>%(channels)s)/(?:(?:vaata/(?P<id>[^/#?]*))|(?:(?:seeria/)?(?P<playlist_id>[^/#?]*)))' % {
-        'channels': _ERR_CHANNELS
+        'channels': _CHANNELS
     }
     _TESTS = [{
         # 0 a video episode
@@ -1566,24 +1564,16 @@ class ERRArhiivIE(ERRTVIE):
         #   page = 1|2|3 etc.
         #   sort = new|old|abc
         #   all = false|true
-        headers = self._get_request_headers(self._ERR_API_GET_SERIES % url_dict,
-                                            ['Referer', 'Origin', 'x-srh', 'Cookie'])
         data = self._download_json(
-            self._ERR_API_GET_SERIES % url_dict, playlist_id,
-            headers=headers,
-            data=urlencode_postdata({'limit': limit, 'page': page, 'sort': sort, 'all': 'false'}))
-        if json_has_value(data, 'activeList'):
-            data = json_get_value(data, 'activeList')
-        else:
-            error_msg = 'Node \'activeList\' not available'
-            self.report_warning(error_msg)
-            raise ExtractorError(error_msg)
+            '%(prefix)s/api/v1/series/%(channel)s/%(playlist_id)s' % url_dict, playlist_id,
+            data=urlencode_postdata(
+                {'limit': limit, 'page': page, 'sort': sort, 'all': 'false'}))['activeList']
         return data
 
     def _fetch_playlist(self, url_dict, playlist_id):
         info = {}
 
-        limit = self._ERR_API_GET_SERIES_LIMIT
+        limit = 500
         page = 1
         sort = 'old'
         list_data = self._api_get_series(url_dict, playlist_id, page=page, limit=limit, sort=sort)
@@ -1626,13 +1616,13 @@ class ERRArhiivIE(ERRTVIE):
         if json_has_value(list_data, 'date'):
             info['timestamp'] = self._timestamp_from_date(json_get_value(list_data, 'date'))
 
-        info['url'] = self._ERR_API_EPISODE_URL % {
+        info['url'] = '%(prefix)s/%(channel)s/vaata/%(id)s' % {
             'prefix': url_dict['prefix'],
             'channel': url_dict['channel'],
             'id': info['id']}
         return info
 
-    def _extract_entry(self, page):
+    def _extract_entry(self, page, video_id):
         info = dict()
 
         info['title'] = json_get_value(page, 'info.title')
@@ -1756,22 +1746,30 @@ class ERRArhiivIE(ERRTVIE):
             if chapters:
                 info['chapters'] = chapters
 
-        if json_has_value(page, 'media.src.hls'):
-            info['url'] = json_get_value(page, 'media.src.hls')
+        formats, subtitles = [], {}
+        if url := traverse_obj(page, ('media', 'src', 'hls', {url_or_none})):
+            fmts, subs = self._sanitize_formats_and_subtitles(
+                *self._extract_m3u8_formats_and_subtitles(
+                    url, video_id, 'mp4', m3u8_id='hls', fatal=False))
+            formats.extend(fmts)
+            self._merge_subtitles(subs, target=subtitles)
 
-        if 'url' in info and json_has_value(page, 'info.url'):
-            video_id = json_get_value(page, 'info.url')
-            headers = self._get_request_headers(info['url'], ['Referer', 'Origin'])
-            info['formats'], subtitles = self._extract_formats_and_subtitles(info['url'], video_id, headers=headers)
-            if subtitles:
-                # Only override when available
-                info['subtitles'] = subtitles
+        if url := traverse_obj(page, ('media', 'src', 'dash', {url_or_none})):
+            fmts, subs = self._sanitize_formats_and_subtitles(
+                *self._extract_mpd_formats_and_subtitles(
+                    url, video_id, mpd_id='dash', fatal=False))
+            formats.extend(fmts)
+            self._merge_subtitles(subs, target=subtitles)
+
+        info['formats'] = formats
+        info['subtitles'] = subtitles
 
         info['license'] = self._ERR_TERMS_AND_CONDITIONS_URL
 
         return info
 
     def _real_extract(self, url):
+        self._init_format_counters()
         info = dict()
         url_dict = self._extract_ids(url)
         info['webpage_url'] = url
@@ -1781,20 +1779,19 @@ class ERRArhiivIE(ERRTVIE):
             info.update(self._fetch_playlist(url_dict, playlist_id))
 
         elif json_has_value(url_dict, 'id'):
-            info['id'] = url_dict['id']
+            video_id = info['id'] = url_dict['id']
             info['display_id'] = url_dict['id']
-            video_id = url_dict['id']
 
-            page = self._api_get_content(url_dict, video_id)
+            page = self._download_json(
+                '%(prefix)s/api/v1/content/%(channel)s/%(id)s' % url_dict, video_id)
             if (url not in self._ERR_URL_SET
                     and not self._downloader.params.get('noplaylist')
-                    and json_has_value(page, 'seriesList.seriesUrl')):
-                playlist_id = json_get_value(page, 'seriesList.seriesUrl')
+                and (playlist_id := json_get_value(page, 'seriesList.seriesUrl'))):
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))
 
             if not json_has_value(info, 'entries'):
-                info.update(self._extract_entry(page))
+                info.update(self._extract_entry(page, video_id))
         else:
             error_msg = 'No id available'
             self.report_warning(error_msg)
