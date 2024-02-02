@@ -49,13 +49,14 @@ from yt_dlp.utils import (
 #   and 'und' to substitute valid language codes for 'unknown', 'original'
 #   and/or 'und', e.g.
 #
-#       --extractor-args 'err:unknown=en;original=et;und=de'
+#       --extractor-args 'UglyERR:unknown=en;original=et;und=de'
 #
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
-#   FIXME   Check for mpd manifest too.
-#   FIXME   Change extractor-arguments prefix to uglyerr.
-#   FIXME   Change extractor names to UglyERR.
+#   FIXME   Beautify _UglyERRBaseIE
+#   FIXME   Beautify UglyERRNewsIE
+#   FIXME   Beautify UglyERRTVIE
+#   FIXME   Change UglyERRTVIE login to better align yt-dlp guidelines
 
 
 def json_find_node(obj, criteria):
@@ -141,12 +142,12 @@ def sanitize_title(title):
     return ' - '.join(map(lambda s: s.strip(), re.split(r'[/|]+', title)))
 
 
-class _ERRBaseIE(InfoExtractor):
+class _UglyERRBaseIE(InfoExtractor):
     _GEO_COUNTRIES = ['EE']
     _GEO_BYPASS = False
     _ERR_CHANNELS = ''
     _ERR_HEADERS = {}
-    _ERR_EXTRACTOR_ARG_PREFIX = 'err'
+    _ERR_EXTRACTOR_ARG_PREFIX = 'UglyERR'
     _ERR_TERMS_AND_CONDITIONS_URL = 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine'
     _VALID_URL = r'(?P<prefix>(?P<protocol>https?)://(?P<channel>%(channels)s).err.ee)/(?P<id>[^/]*)/(?P<display_id>[^/#?]*)' % {
         'channels': _ERR_CHANNELS
@@ -188,14 +189,16 @@ class _ERRBaseIE(InfoExtractor):
 
     @staticmethod
     def _lang_to_iso639(lang):
-        return _ERRBaseIE._LANG2ISO639_TBL.get(lang.lower(), lang)
+        return _UglyERRBaseIE._LANG2ISO639_TBL.get(lang.lower(), lang)
 
-    def _init_format_counters(self):
+    def _reset_format_counters(self):
         self._FORMAT_COUNTERS.clear()
 
     def _next_format_postfix(self, format_id):
-        '''Increments counter associated to format_id, and returns "-counter"
-        if counter > 0, otherwise returns a empty string. '''
+        """
+        Increments counter associated to format_id, and returns "-counter"
+        if counter > 0, otherwise returns a empty string.
+        """
         counter = (self._FORMAT_COUNTERS[format_id] + 1) if (
             format_id in self._FORMAT_COUNTERS) else 0
         self._FORMAT_COUNTERS[format_id] = counter
@@ -303,7 +306,7 @@ class _ERRBaseIE(InfoExtractor):
             self.to_screen('[debug] ' + (msg if msg else '') + json.dumps(obj, indent=4, sort_keys=sort_keys))
 
 
-class ERRNewsIE(_ERRBaseIE):
+class UglyERRNewsIE(_UglyERRBaseIE):
     IE_DESC = 'err.ee: videos and audio material embedded in news articles'
     _ERR_CHANNELS = r'uudised|kultuur|sport|menu|novaator|news|rus|www'
     _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://(?P<channel>%(channels)s).err.ee)/(?P<id>[^/]*)/(?P<display_id>[^/#?]*)' % {
@@ -471,7 +474,7 @@ class ERRNewsIE(_ERRBaseIE):
         return info
 
     def _real_extract(self, url):
-        self._init_format_counters()
+        self._reset_format_counters()
         info = dict()
         url_dict = self._extract_ids(url)
         video_id = url_dict['id']
@@ -509,7 +512,7 @@ class ERRNewsIE(_ERRBaseIE):
         return info
 
 
-class ERRTVIE(_ERRBaseIE):
+class UglyERRTVIE(_UglyERRBaseIE):
     IE_DESC = 'etv.err.ee, etv2.err.ee, etvpluss.err.ee, lasteekraan.err.ee'
     _ERR_API_GET_CONTENT = '%(prefix)s/api/tv/getTvPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
@@ -620,6 +623,7 @@ class ERRTVIE(_ERRBaseIE):
             'subtitles': {
                 'et': [
                     {'url': r're:^https?://.+\.err\.ee/hls/vod/1143697/2/v/index-f3\.m3u8'},
+                    {'url': r're:^https?://.+\.err\.ee/dash/vod/1143697/2/v/sub-f3\.vtt'},
                 ],
             },
         },
@@ -646,7 +650,7 @@ class ERRTVIE(_ERRBaseIE):
     }]
 
     def _real_initialize(self):
-        super(ERRTVIE, self)._real_initialize()
+        super(UglyERRTVIE, self)._real_initialize()
 
     def _is_logged_in(self):
         return self._ERR_LOGIN_DATA and self._ERR_LOGIN_DATA['success']
@@ -670,8 +674,10 @@ class ERRTVIE(_ERRBaseIE):
         self._ERR_HEADERS['x-srh'] = '1'
 
     def _rewrite_url(self, url):
-        """Rewrites geoblocked url to contain login token and to always use
-        https protocol. Leaves the url unchanged, if not logged in."""
+        """
+        Rewrites geoblocked url to contain login token and to always use https
+        protocol. Leaves the url unchanged, if not logged in.
+        """
 
         return url if not self._is_logged_in() else re.sub(
             r'https?:(//[^/]+/)',
@@ -750,7 +756,6 @@ class ERRTVIE(_ERRBaseIE):
 
         info['formats'] = formats
         info['subtitles'] = subtitles
-        self._dump_json(obj, msg='OBJ', filename="DEBUG")
         return info
 
     def _extract_entry(self, obj, channel=None, extract_medias=True, extract_thumbnails=True):
@@ -922,35 +927,6 @@ class ERRTVIE(_ERRBaseIE):
 
         return info
 
-    def _get_playlist_items(self, url_dict, video_id, playlist_data):
-        """Generator of playlist items"""
-        if 'data' in playlist_data:
-            # /api/tv/getCategoryPastShows
-            for item in playlist_data['data']:
-                yield item
-        elif 'items' in playlist_data:
-            # SeasonList data source has one major drawback, list items don't
-            # contain master urls.
-            if playlist_data['type'] == 'monthly':
-                for year in playlist_data['items']:
-                    for month in year['items']:
-                        if 'active' not in month:
-                            udict = url_dict.copy()
-                            udict['id'] = month['firstContentId']
-                            jsonpage = self._api_get_content(udict, video_id)
-                            month = json_find_node(jsonpage, month)
-                        for item in month['contents']:
-                            yield item
-            elif playlist_data['type'] in ['shortSeriesList', 'seasonal']:
-                for season in playlist_data['items']:
-                    if 'contents' not in season:
-                        udict = url_dict.copy()
-                        udict['id'] = season['firstContentId']
-                        jsonpage = self._api_get_content(udict, video_id)
-                        season = json_find_node(jsonpage, season)
-                    for item in season['contents']:
-                        yield item
-
     def _get_request_headers(self, url, request_headers=None):
         headers = {}
         if isinstance(request_headers, str):
@@ -985,6 +961,35 @@ class ERRTVIE(_ERRBaseIE):
             self._ERR_API_GET_PARENT_CONTENT % url_dict, video_id,
             headers=headers)
 
+    def _get_playlist_items(self, url_dict, video_id, playlist_data):
+        """Generator of playlist items"""
+        if 'data' in playlist_data:
+            # /api/tv/getCategoryPastShows
+            for item in playlist_data['data']:
+                yield item
+        elif 'items' in playlist_data:
+            # SeasonList data source has one major drawback, list items don't
+            # contain master urls.
+            if playlist_data['type'] == 'monthly':
+                for year in playlist_data['items']:
+                    for month in year['items']:
+                        if 'active' not in month:
+                            udict = url_dict.copy()
+                            udict['id'] = month['firstContentId']
+                            jsonpage = self._api_get_content(udict, video_id)
+                            month = json_find_node(jsonpage, month)
+                        for item in month['contents']:
+                            yield item
+            elif playlist_data['type'] in ['shortSeriesList', 'seasonal']:
+                for season in playlist_data['items']:
+                    if 'contents' not in season:
+                        udict = url_dict.copy()
+                        udict['id'] = season['firstContentId']
+                        jsonpage = self._api_get_content(udict, video_id)
+                        season = json_find_node(jsonpage, season)
+                    for item in season['contents']:
+                        yield item
+
     def _api_login(self, url_dict, video_id):
         username, password = self._get_login_info()
         if username is None:
@@ -998,7 +1003,7 @@ class ERRTVIE(_ERRBaseIE):
             }))
 
     def _real_extract(self, url):
-        self._init_format_counters()
+        self._reset_format_counters()
         info = dict()
         url_dict = self._extract_ids(url)
         if url_dict['id']:
@@ -1068,7 +1073,7 @@ class ERRTVIE(_ERRBaseIE):
         return info
 
 
-class ERRJupiterIE(ERRTVIE):
+class UglyERRJupiterIE(UglyERRTVIE):
     IE_DESC = 'jupiter.err.ee'
     _ERR_API_GET_CONTENT = 'https://services.err.ee/api/v2/vodContent/getContentPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = 'https://services.err.ee/api/v2/vodContent/getContentPageDataForUser?contentId=%(id)s'
@@ -1173,7 +1178,7 @@ class ERRJupiterIE(ERRTVIE):
     }]
 
 
-class ERRJupiterPlussIE(ERRJupiterIE):
+class UglyERRJupiterPlussIE(UglyERRJupiterIE):
     IE_DESC = 'jupiterpluss.err.ee'
     _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://jupiterpluss.err.ee)/(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]*))?)(?P<leftover>.+)?\Z'
     _TESTS = [{
@@ -1237,7 +1242,7 @@ class ERRJupiterPlussIE(ERRJupiterIE):
     }]
 
 
-class ERRRadioIE(ERRTVIE):
+class UglyERRRadioIE(UglyERRTVIE):
     IE_DESC = 'vikerraadio.err.ee, klassikaraadio.err.ee, r2.err.ee, r4.err.ee'
     _ERR_API_GET_CONTENT = '%(prefix)s/api/radio/getRadioPageData?contentId=%(id)s'
     _ERR_API_SHOWDATA_KEY = 'pageControlData.mainContent'
@@ -1254,7 +1259,7 @@ class ERRRadioIE(ERRTVIE):
         'info_dict': {
             'id': '795251',
             'display_id': 'linnukool-mailopu-helid',
-            'ext': 'm4a',
+            'ext': 'mp4',
             'title': 'Linnu- ja loomakool - 201506 - Mailõpu helid',
             'episode': 'Mailõpu helid',
             'episode_id': '20150601',
@@ -1275,7 +1280,7 @@ class ERRRadioIE(ERRTVIE):
             'drm': False,
         },
         'params': {
-            'format': 'bestaudio',
+            'format': 'worstaudio',
             'noplaylist': True,
         },
     }, {
@@ -1286,7 +1291,7 @@ class ERRRadioIE(ERRTVIE):
         'info_dict': {
             'id': '1608237795',
             'display_id': 'miraaz-carl-friedrich-abel-1723-1787-gambasonaadid',
-            'ext': 'm4a',
+            'ext': 'mp4',
             'title': 'Miraaž - 202106 - Carl Friedrich Abel (1723-1787) - Gambasonaadid',
             'episode': 'Carl Friedrich Abel (1723-1787) - Gambasonaadid',
             'episode_id': '20210609',
@@ -1308,7 +1313,7 @@ class ERRRadioIE(ERRTVIE):
 
         },
         'params': {
-            'format': 'bestaudio',
+            'format': 'worstaudio',
             'noplaylist': True,
         },
     }, {
@@ -1319,7 +1324,7 @@ class ERRRadioIE(ERRTVIE):
         'info_dict': {
             'id': '1608243180',
             'display_id': 'kuuldemang-hannes-hamburg-kulupoletajad',
-            'ext': 'm4a',
+            'ext': 'mp4',
             'title': 'Kuuldem\xe4ng - 202106 - Hannes Hamburg Kulupõletajad',
             'episode': 'Hannes Hamburg Kulupõletajad',
             'episode_id': '20210615',
@@ -1340,7 +1345,7 @@ class ERRRadioIE(ERRTVIE):
             'release_timestamp': 1624161600,
         },
         'params': {
-            'format': 'bestaudio',
+            'format': 'worstaudio',
             'noplaylist': True,
         },
     }, {
@@ -1350,7 +1355,7 @@ class ERRRadioIE(ERRTVIE):
         'info_dict': {
             'id': '1608218368',
             'display_id': 'razbor-poljotov',
-            'ext': 'm4a',
+            'ext': 'mp4',
             'title': 'Разбор полетов - 202105 - Разбор полётов',
             'episode': 'Разбор полётов',
             'series': 'Разбор полетов',
@@ -1371,18 +1376,18 @@ class ERRRadioIE(ERRTVIE):
             'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
         },
         'params': {
-            'format': 'bestaudio',
+            'format': 'worstaudio',
             'noplaylist': True,
         },
     }]
 
 
-class ERRArhiivIE(_ERRBaseIE):
+class UglyERRArhiivIE(_UglyERRBaseIE):
     IE_DESC = 'arhiiv.err.ee: archived TV and radio shows, movies and documentaries produced in ETV (Estonia)'
     _NETRC_MACHINE = None
-    _CHANNELS = r'video|audio'
+    _ERR_CHANNELS = r'video|audio'
     _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://arhiiv\.err\.ee)/(?P<channel>%(channels)s)/(?:(?:vaata/(?P<id>[^/#?]*))|(?:(?:seeria/)?(?P<playlist_id>[^/#?]*)))' % {
-        'channels': _CHANNELS
+        'channels': _ERR_CHANNELS
     }
     _TESTS = [{
         # 0 a video episode
@@ -1400,7 +1405,6 @@ class ERRArhiivIE(_ERRBaseIE):
             'timestamp': 1256428800,
             'series_id': 169,
             'duration': 1642.0,
-            'series_url': 'eesti-aja-lood',
             'creator': 'md5:060ad59083433a8f9a35e250816c5cfb',
             'series_type': 'monthly',
             'episode_number': 68,
@@ -1447,8 +1451,8 @@ class ERRArhiivIE(_ERRBaseIE):
         'info_dict': {
             'id': 'linnulaul-linnulaul-34-rukkiraak',
             'display_id': 'linnulaul-linnulaul-34-rukkiraak',
-            'ext': 'm4a',
-            'title': 'Linnulaul - 34. Rukkirääk',
+            'ext': 'mp4',
+            'title': 'LINNULAUL 34. Rukkirääk',
             'thumbnail':
             'https://arhiiv-images.err.ee/thumbnails/2022/557h4afd_thumb.jpg',
             'description': 'md5:d41739b0c8e250a3435216afc98c8741',
@@ -1461,12 +1465,11 @@ class ERRArhiivIE(_ERRBaseIE):
             'series_id': 20876,
             'upload_date': '20020530',
             'duration': 69.0,
-            'series_url': 'linnulaul',
             'series_type': 'yearly',
             'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
         },
         'params': {
-            'format': 'bestaudio',
+            'format': 'worstaudio',
             'noplaylist': True,
         },
     }, {
@@ -1484,7 +1487,7 @@ class ERRArhiivIE(_ERRBaseIE):
         },
     }, {
         # 4 arhiiv.err.ee video playlist
-        'skip': 'Spare err.ee',
+        # 'skip': 'Spare err.ee',
         '_type': 'playlist',
         'url':
         'https://arhiiv.err.ee/video/seeria/terevisioon',
@@ -1498,7 +1501,7 @@ class ERRArhiivIE(_ERRBaseIE):
         },
     }, {
         # 5 arhiiv.err.ee audio playlist
-        'skip': 'Spare err.ee',
+        # 'skip': 'Spare err.ee',
         '_type': 'playlist',
         'url':
         'https://arhiiv.err.ee/audio/seeria/paevakaja',
@@ -1538,7 +1541,7 @@ class ERRArhiivIE(_ERRBaseIE):
         },
     }, {
         # 8 arhiiv.err.ee video playlist
-        'skip': 'Spare err.ee',
+        # 'skip': 'Spare err.ee',
         '_type': 'playlist',
         'url':
         'https://arhiiv.err.ee/video/ringvaade-suvel',
@@ -1558,12 +1561,13 @@ class ERRArhiivIE(_ERRBaseIE):
         return datetime.timestamp(dt)
 
     def _api_get_series(self, url_dict, playlist_id, limit=100, page=1, sort='old'):
-        # List data can be fetched by api/v1/series/video/series_id
-        # Posted form controls:
-        #   limit = 24|100|500
-        #   page = 1|2|3 etc.
-        #   sort = new|old|abc
-        #   all = false|true
+        """
+        Posted form controls:
+            limit = 24|100|500,
+            page = 1|2|3|...,
+            sort = new|old|abc,
+            all = false|true
+        """
         data = self._download_json(
             '%(prefix)s/api/v1/series/%(channel)s/%(playlist_id)s' % url_dict, playlist_id,
             data=urlencode_postdata(
@@ -1578,11 +1582,11 @@ class ERRArhiivIE(_ERRBaseIE):
         sort = 'old'
         list_data = self._api_get_series(url_dict, playlist_id, page=page, limit=limit, sort=sort)
 
-        if json_has_value(list_data, 'seriesId'):
+        if 'seriesId' in list_data :
             info['_type'] = 'playlist'
-            info['display_id'] = json_get_value(list_data, 'url')
-            info['id'] = info['display_id']
-            info['playlist_count'] = json_get_value(list_data, 'totalCount')
+            info['display_id'] = traverse_obj(list_data, 'url')
+            info['id'] = info.get('display_id')
+            info['playlist_count'] = traverse_obj(list_data, 'totalCount', {int_or_none})
         else:
             error_msg = 'No playlist id available'
             self.report_warning(error_msg)
@@ -1590,7 +1594,8 @@ class ERRArhiivIE(_ERRBaseIE):
 
         while True:
             entries = []
-            for item in self._get_playlist_items(url_dict, playlist_id, list_data):
+
+            for item in list_data.get('data') or []:
                 entry = self._extract_list_entry(item, url_dict)
                 entry['series_id'] = info['id']
                 self._ERR_URL_SET.add(entry['url'])
@@ -1600,7 +1605,8 @@ class ERRArhiivIE(_ERRBaseIE):
             info['entries'].extend(entries)
             if page * limit < info['playlist_count']:
                 page += 1
-                list_data = self._api_get_series(url_dict, playlist_id, page=page, limit=limit, sort=sort)
+                list_data = self._api_get_series(
+                    url_dict, playlist_id, page=page, limit=limit, sort=sort)
             else:
                 break
 
@@ -1609,12 +1615,10 @@ class ERRArhiivIE(_ERRBaseIE):
     def _extract_list_entry(self, list_data, url_dict):
         info = dict()
         info['_type'] = 'url'
-        info['id'] = json_get_value(list_data, 'url')
-        info['media_type'] = json_get_value(list_data, 'type')
-        # info['title'] = json_get_value(list_data, 'heading')
-        # info['description'] = json_get_value(list_data, 'lead')
-        if json_has_value(list_data, 'date'):
-            info['timestamp'] = self._timestamp_from_date(json_get_value(list_data, 'date'))
+        info['id'] = list_data.get('url')
+        info['media_type'] = list_data.get('type')
+        info['timestamp'] = traverse_obj(list_data, ('date',{str_or_none},
+            {lambda x: self._timestamp_from_date(x)}))
 
         info['url'] = '%(prefix)s/%(channel)s/vaata/%(id)s' % {
             'prefix': url_dict['prefix'],
@@ -1625,63 +1629,27 @@ class ERRArhiivIE(_ERRBaseIE):
     def _extract_entry(self, page, video_id):
         info = dict()
 
-        info['title'] = json_get_value(page, 'info.title')
-        info['media_type'] = json_get_value(page, 'info.archiveType')
-        info['description'] = json_get_value(page, 'info.synopsis')
-        if json_get_value(page, 'info.description'):
-            if info['description']:
-                info['description'] = info['description'] + '\n\n' +\
-                    json_get_value(page, 'info.description')
+        info['title'] = traverse_obj(page, ('info', 'title'))
+        info['media_type'] = traverse_obj(page, ('info', 'archiveType'))
+        info['description'] = traverse_obj(page, ('info', 'synopsis'))
+        if dsc1 := traverse_obj(
+            page, ('info', 'description')) and (dsc0 := info.get('description')):
+            info['description'] = dsc0 + '\n\n' + dsc1
 
-        info['webpage_url'] = json_get_value(page, 'info.fullUrl')
+        info['webpage_url'] = traverse_obj(page, ('info', 'fullUrl'))
+        info['timestamp'] = traverse_obj(page, ('info', 'date', {unified_timestamp}))
+        info['series'] = traverse_obj(page, ('seriesList', 'seriesTitle'))
+        info['series_type'] = traverse_obj(page, ('seriesList', 'seriesType'))
+        info['series_id'] = traverse_obj(page, ('info', 'seriesId'))
 
-        if json_has_value(page, 'info.date'):
-            info['timestamp'] = unified_timestamp(json_get_value(page, 'info.date'))
+        info['episode'] = traverse_obj(page, ('info', 'episode'))
+        if ep := info.get('episode'):
+            if ep.isdigit():
+                info['episode_number'] = int(ep)
 
-        if json_has_value(page, 'info.seriesTitle'):
-            info['series'] = json_get_value(page, 'info.seriesTitle')
-        elif json_has_value(page, 'seriesList.seriesTitle'):
-            info['series'] = json_get_value(page, 'seriesList.seriesTitle')
-        if json_has_value(page, 'seriesList.seriesType'):
-            info['series_type'] = json_get_value(page, 'seriesList.seriesType')
-        if json_has_value(page, 'info.seriesId'):
-            info['series_id'] = json_get_value(page, 'info.seriesId')
-        if json_has_value(page, 'info.seriesUrl'):
-            info['series_url'] = json_get_value(page, 'info.seriesUrl')
+        info['thumbnail'] = traverse_obj(page, ('info', 'videoPhotoUrl'))
 
-        if json_has_value(page, 'info.episode'):
-            info['episode'] = json_get_value(page, 'info.episode')
-            if info['episode'].isdigit():
-                info['episode_number'] = int(info['episode'])
-
-        # Demangle title
-        if 'series' in info:
-            episode = info['title']
-            prefix = info['series'].upper()
-            if episode.upper().startswith(prefix + ': ' + prefix):
-                # ERR Arhiiv sometimes mangles episode's title by
-                # adding series name twice as prefix.  This hack
-                # corrects it.
-                episode = episode[len(prefix + ': ' + prefix):]
-            elif episode.upper().startswith(prefix):
-                episode = episode[len(prefix):]
-
-            episode = episode.strip(':.').strip()
-
-            if not episode:
-                self.report_warning('Episode name reduced to \'none\'')
-            else:
-                info['episode'] = sanitize_title(episode)
-
-            if 'episode' in info:
-                info['title'] = info['series'] + ' - ' + info['episode']
-
-        info['title'] = sanitize_title(info['title'])
-
-        if json_has_value(page, 'info.videoPhotoUrl'):
-            info['thumbnail'] = json_get_value(page, 'info.videoPhotoUrl')
-
-        if json_has_value(page, 'metadata.data'):
+        if traverse_obj(page, ('metadata', 'data')):
             def traverse_metadata(data):
                 prefix = data['label'] + '.' if isinstance(data, dict) and 'label' in data else ''
 
@@ -1697,7 +1665,7 @@ class ERRArhiivIE(_ERRBaseIE):
                     if 'label' in data and 'value' in data:
                         yield {'label': data['label'], 'value': data['value']}
 
-            for prop in traverse_metadata(json_get_value(page, 'metadata')):
+            for prop in traverse_metadata(page.get('metadata')):
                 label = prop['label'].strip()
                 value = prop['value'].strip()
                 if label.endswith('Sarja pealkiri'):
@@ -1734,17 +1702,19 @@ class ERRArhiivIE(_ERRBaseIE):
             if 'creator' in info:
                 info['creator'] = ', '.join(info['creator'])
 
-        if json_has_value(page, 'description.data'):
-            chapters = list()
-            for chapter in json_get_value(page, 'description.data'):
-                start_time = floor(chapter['beginTime'] / 1000)
-                end_time = ceil(chapter['endTime'] / 1000)
-                title = chapter['content'].strip()
-                chapters.append({'start_time': start_time,
-                                 'end_time': end_time,
-                                 'title': title})
-            if chapters:
-                info['chapters'] = chapters
+        # Demangle title
+        if info.get('series') and info.get('episode_number') and info.get('episode') and not info.get('episode').isdigit():
+            info['title'] = f'{info["series"]} - {info["episode_number"]} - {info["episode"]}' 
+
+        info['title'] = sanitize_title(info['title'])
+
+        chapters = [{
+            'start_time': floor(chapter['beginTime'] / 1000),
+            'end_time': ceil(chapter['endTime'] / 1000),
+            'title': chapter['content'].strip(),
+        } for chapter in traverse_obj(page, ('description', 'data', ...))]
+        if chapters:
+            info['chapters'] = chapters
 
         formats, subtitles = [], {}
         if url := traverse_obj(page, ('media', 'src', 'hls', {url_or_none})):
@@ -1769,16 +1739,16 @@ class ERRArhiivIE(_ERRBaseIE):
         return info
 
     def _real_extract(self, url):
-        self._init_format_counters()
+        self._reset_format_counters()
         info = dict()
         url_dict = self._extract_ids(url)
         info['webpage_url'] = url
 
-        if json_has_value(url_dict, 'playlist_id'):
+        if url_dict.get('playlist_id'):
             playlist_id = url_dict['playlist_id']
             info.update(self._fetch_playlist(url_dict, playlist_id))
 
-        elif json_has_value(url_dict, 'id'):
+        elif url_dict.get('id'):
             video_id = info['id'] = url_dict['id']
             info['display_id'] = url_dict['id']
 
@@ -1786,11 +1756,11 @@ class ERRArhiivIE(_ERRBaseIE):
                 '%(prefix)s/api/v1/content/%(channel)s/%(id)s' % url_dict, video_id)
             if (url not in self._ERR_URL_SET
                     and not self._downloader.params.get('noplaylist')
-                and (playlist_id := json_get_value(page, 'seriesList.seriesUrl'))):
+                and (playlist_id := traverse_obj(page, ('seriesList', 'seriesUrl')))):
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))
 
-            if not json_has_value(info, 'entries'):
+            if not info.get('entries'):
                 info.update(self._extract_entry(page, video_id))
         else:
             error_msg = 'No id available'

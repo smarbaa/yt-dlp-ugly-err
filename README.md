@@ -39,7 +39,7 @@ ERR usage terms and rights are explained in [https://info.err.ee/982667/kasutust
 
 jupiter.err.ee sometimes gives strange languages for audio streams, and extractor labels them as 'unknown' or 'original'. Unrecognized subtitle language gets labeled 'und' (undetermined). To avoid fixing them later in some other software, one may use extractor arguments 'unknown', 'original' and 'und' to substitute valid language codes for 'unknown', 'original' and/or 'und', e.g.
 
-    --extractor-args 'err:unknown=en;original=et;und=de'
+    --extractor-args 'UglyERR:unknown=en;original=et;und=de'
 
 ## Usage examples
 
@@ -54,7 +54,7 @@ $ yt-dlp --print filename --print description --print formats_table 'https://kul
 ## Download video stream '136' and audio stream 'unknown' and rename
 ## 'unknown' to 'et', embed metadata and thumbnail if available.
 
-$ yt-dlp -f 136+et --extractor-args 'err:unknown=et' --embed-metadata --embed-thumbnail 'https://kultuur.err.ee/1609231323/david-vseviov-raamatud-tuleb-lahti-seletada-mitte-ara-keelata'
+$ yt-dlp -f 136+et --extractor-args 'UglyERR:unknown=et' --embed-metadata --embed-thumbnail 'https://kultuur.err.ee/1609231323/david-vseviov-raamatud-tuleb-lahti-seletada-mitte-ara-keelata'
 
 ## Radio episodes and podcasts
 
@@ -84,7 +84,7 @@ $ yt-dlp --list-formats https://arhiiv.err.ee/video/vaata/toonela-lind-must-toon
 ## thumbnail, replace 'unknown' audio stream label with 'et', use output
 ## template to get a nice readable filename
 
-$ yt-dlp --extractor-args 'err:unknown=et' --embed-thumbnail --embed-metadata --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vaata/toonela-lind-must-toonekurg
+$ yt-dlp --extractor-args 'UglyERR:unknown=et' --embed-thumbnail --embed-metadata --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vaata/toonela-lind-must-toonekurg
 
 ## List all episodes of a series, their available formats and subtitles.
 
