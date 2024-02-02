@@ -53,7 +53,6 @@ from yt_dlp.utils import (
 #
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
-#   FIXME   Beautify _UglyERRBaseIE
 #   FIXME   Beautify UglyERRNewsIE
 #   FIXME   Beautify UglyERRTVIE
 #   FIXME   Change UglyERRTVIE login to better align yt-dlp guidelines
@@ -146,7 +145,6 @@ class _UglyERRBaseIE(InfoExtractor):
     _GEO_COUNTRIES = ['EE']
     _GEO_BYPASS = False
     _ERR_CHANNELS = ''
-    _ERR_HEADERS = {}
     _ERR_EXTRACTOR_ARG_PREFIX = 'UglyERR'
     _ERR_TERMS_AND_CONDITIONS_URL = 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine'
     _VALID_URL = r'(?P<prefix>(?P<protocol>https?)://(?P<channel>%(channels)s).err.ee)/(?P<id>[^/]*)/(?P<display_id>[^/#?]*)' % {
@@ -181,8 +179,9 @@ class _UglyERRBaseIE(InfoExtractor):
             },
         },
     }
-    _FORMAT_COUNTERS = {}
+    _ERR_FORMAT_COUNTERS = {}
     _ERR_URL_SET = set()
+    _ERR_HEADERS = {}
 
     def _real_initialize(self):
         locale.setlocale(locale.LC_TIME, 'et_EE.UTF-8')
@@ -192,34 +191,25 @@ class _UglyERRBaseIE(InfoExtractor):
         return _UglyERRBaseIE._LANG2ISO639_TBL.get(lang.lower(), lang)
 
     def _reset_format_counters(self):
-        self._FORMAT_COUNTERS.clear()
+        self._ERR_FORMAT_COUNTERS.clear()
 
     def _next_format_postfix(self, format_id):
         """
         Increments counter associated to format_id, and returns "-counter"
         if counter > 0, otherwise returns a empty string.
         """
-        counter = (self._FORMAT_COUNTERS[format_id] + 1) if (
-            format_id in self._FORMAT_COUNTERS) else 0
-        self._FORMAT_COUNTERS[format_id] = counter
+        counter = (self._ERR_FORMAT_COUNTERS[format_id] + 1) if (
+            format_id in self._ERR_FORMAT_COUNTERS) else 0
+        self._ERR_FORMAT_COUNTERS[format_id] = counter
         return '' if counter == 0 else '-%d' % counter
-
-    def _extract_subtitles(self, obj, lang_property='name', url_prefix=''):
-        subtitles = {}
-        if json_has_value(obj, 'subtitles'):
-            for subs in obj['subtitles']:
-                tag = self._lang_to_iso639(subs[lang_property].lower())
-                subtitles[tag] = []
-                subtitles[tag].append({'url': sanitize_url('%s%s' % (url_prefix, subs['src']))})
-        return subtitles
 
     def _assign_format_id(self, format_desc):
         if (format_desc.get('acodec', 'none') == 'none'
                 and format_desc.get('vcodec', 'none') != 'none'):
             key = 'video.%s.%dp' % (
                 format_desc['ext'], format_desc['height'])
-            if json_has_value(self._FORMAT_ID_TBL, key):
-                return json_get_value(self._FORMAT_ID_TBL, key)
+            if self._FORMAT_ID_TBL.get(key):
+                return self._FORMAT_ID_TBL.get(key)
         return format_desc['format_id']
 
     def _sanitize_formats_and_subtitles(self, formats, subtitles):
