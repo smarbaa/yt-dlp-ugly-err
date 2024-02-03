@@ -53,9 +53,8 @@ from yt_dlp.utils import (
 #
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
-#   FIXME   Beautify UglyERRNewsIE
-#   FIXME   Beautify UglyERRTVIE
 #   FIXME   Change UglyERRTVIE login to better align yt-dlp guidelines
+#   FIXME   Beautify UglyERRTVIE
 
 
 def json_find_node(obj, criteria):
@@ -388,13 +387,14 @@ class UglyERRNewsIE(_UglyERRBaseIE):
             info = {}
             page = self._download_webpage(url, video_id)
             if not page:
-                self.report_warning('No video page available')
+                self.report_warning(f'No video page available for {url}')
                 continue
+            # FIXME search for dash too
             # hls, hls2, hlsNew and hlsNoSub are available, only hlsNoSub seems to work.
             mobj = re.search(r'(["\'])hlsNoSub\1\s*:\s*(["\'])(?P<master_url>[^\2]+master.m3u8)\2', page)
             if not mobj:
-                self.report_warning('No master url available')
-                raise ExtractorError('No master url available')
+                self.report_warning(f'No master url available for {url}')
+                continue
             master_url = mobj.group('master_url').replace('\\', '')
             info['url'] = master_url
             info['formats'] = self._extract_formats(master_url, video_id)
@@ -668,7 +668,6 @@ class UglyERRTVIE(_UglyERRBaseIE):
         Rewrites geoblocked url to contain login token and to always use https
         protocol. Leaves the url unchanged, if not logged in.
         """
-
         return url if not self._is_logged_in() else re.sub(
             r'https?:(//[^/]+/)',
             r'https:\g<1>%(atlId)s/' % self._ERR_LOGIN_DATA['user'], url)
@@ -1572,7 +1571,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
         sort = 'old'
         list_data = self._api_get_series(url_dict, playlist_id, page=page, limit=limit, sort=sort)
 
-        if 'seriesId' in list_data :
+        if 'seriesId' in list_data:
             info['_type'] = 'playlist'
             info['display_id'] = traverse_obj(list_data, 'url')
             info['id'] = info.get('display_id')
@@ -1607,7 +1606,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
         info['_type'] = 'url'
         info['id'] = list_data.get('url')
         info['media_type'] = list_data.get('type')
-        info['timestamp'] = traverse_obj(list_data, ('date',{str_or_none},
+        info['timestamp'] = traverse_obj(list_data, ('date', {str_or_none},
             {lambda x: self._timestamp_from_date(x)}))
 
         info['url'] = '%(prefix)s/%(channel)s/vaata/%(id)s' % {
@@ -1693,8 +1692,9 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
                 info['creator'] = ', '.join(info['creator'])
 
         # Demangle title
-        if info.get('series') and info.get('episode_number') and info.get('episode') and not info.get('episode').isdigit():
-            info['title'] = f'{info["series"]} - {info["episode_number"]} - {info["episode"]}' 
+        if (info.get('series') and info.get('episode_number')
+            and info.get('episode') and not info.get('episode').isdigit()):
+            info['title'] = f'{info["series"]} - {info["episode_number"]} - {info["episode"]}'
 
         info['title'] = sanitize_title(info['title'])
 
