@@ -24,36 +24,8 @@ from yt_dlp.utils import (
     url_or_none,
 )
 
-#   ## Supported Features
-#
-#   All provided audio, video and subtitle streams.
-#   Thumbnails and chapters if available.
-#   Series are handled as playlists.
-#
-#   ## Authentication Options
-#
-#   etv, jupiter an jupiterpluss support username/password and
-#   netrc based authentication, netrc machine should be err.ee.
-#
-#   ## Usage Terms and Rights of Downloaded Material
-#
-#   Usage terms and rights are explained in
-#   (https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine)
-#
-#   ## Known Problems
-#
-#   jupiter.err.ee sometimes gives strange languages for audio streams, and
-#   extractor labels them as 'unknown' or 'original'. Unrecognized subtitles
-#   language gets labeled 'und' (undetermined). To avoid fixing them later in
-#   some other software, one may use extractor arguments 'unknown', 'original'
-#   and 'und' to substitute valid language codes for 'unknown', 'original'
-#   and/or 'und', e.g.
-#
-#       --extractor-args 'UglyERR:unknown=en;original=et;und=de'
-#
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
-#   FIXME   Change UglyERRTVIE login to better align yt-dlp guidelines
 #   FIXME   Beautify UglyERRTVIE
 
 
@@ -207,11 +179,12 @@ class _UglyERRBaseIE(InfoExtractor):
                 and format_desc.get('vcodec', 'none') != 'none'):
             key = 'video.%s.%dp' % (
                 format_desc['ext'], format_desc['height'])
-            if self._FORMAT_ID_TBL.get(key):
-                return self._FORMAT_ID_TBL.get(key)
+            if format_id := json_get_value(self._FORMAT_ID_TBL, key):
+                return format_id
         return format_desc['format_id']
 
     def _sanitize_formats_and_subtitles(self, formats, subtitles):
+        fmts = []
         for format in formats:
             if (format.get('vcodec', 'none') == 'none'):
                 if format.get('language', 'ch') == 'ch':
@@ -244,6 +217,7 @@ class _UglyERRBaseIE(InfoExtractor):
                     self._next_format_postfix(format['format_id']))
                 format['format_note'] = '%dp' % format['height']
                 format['format'] = '%(format_id)s - %(width)dx%(height)d (%(format_note)s)' % format
+            fmts.append(format)
 
         subs = {}
         for lang, subtitle in subtitles.items():
@@ -252,7 +226,7 @@ class _UglyERRBaseIE(InfoExtractor):
             lang = lst[0] if len(lst) > 0 else lang
             subs[lang] = subtitle
 
-        return formats, subs
+        return fmts, subs
 
     def _extract_formats(self, master_url, video_id):
         formats, _ = self._extract_formats_and_subtitles(master_url, video_id)
@@ -510,7 +484,6 @@ class UglyERRTVIE(_UglyERRBaseIE):
     _ERR_API_SHOWDATA_KEY = 'mainContent'
     _ERR_API_USE_SEASONLIST = False
     _ERR_CHANNELS = r'etv|etv2|etvpluss|lasteekraan'
-    _ERR_API_LOGIN = '%(prefix)s/api/auth/login'
     _ERR_LOGIN_DATA = {}
     _ERR_LOGIN_SUPPORTED = True
     _NETRC_MACHINE = 'err.ee'
@@ -642,21 +615,25 @@ class UglyERRTVIE(_UglyERRBaseIE):
     def _real_initialize(self):
         super(UglyERRTVIE, self)._real_initialize()
 
-    def _is_logged_in(self):
-        return self._ERR_LOGIN_DATA and self._ERR_LOGIN_DATA['success']
-
-    def _login(self, url_dict, video_id):
-        if not self._ERR_LOGIN_SUPPORTED:
+    def _perform_login(self, username, password):
+        if (not self._ERR_LOGIN_SUPPORTED or not username or not password):
             return
-        if not self._get_login_info()[0]:
-            return
-        login_data = self._api_login(url_dict, video_id)
+        login_data = self._download_json(
+            'https://services.err.ee/api/auth/login', 'UglyERRLogin',
+            note='Logging in', errnote='Unable to log in', fatal=False,
+            data=urlencode_postdata({
+                'pass': password,
+                'user': username,
+            }))
         if login_data.get('success', False):
             self._ERR_LOGIN_DATA = login_data
             self._set_cookie('.err.ee', 'atlId', login_data['user']['atlId'])
             self._set_cookie('.err.ee', 'allowCookiesV2', 'true')
         else:
-            raise ExtractorError('Login failed.', video_id=video_id, expected=True)
+            raise ExtractorError('Login failed.', expected=True)
+
+    def _is_logged_in(self):
+        return self._ERR_LOGIN_DATA and self._ERR_LOGIN_DATA.get('success', False)
 
     def _set_headers(self, url_dict):
         self._ERR_HEADERS['Origin'] = '%(prefix)s' % url_dict
@@ -712,6 +689,10 @@ class UglyERRTVIE(_UglyERRBaseIE):
                 info['geoblocked'] = json_get_value(media, 'restrictions.geoBlock')
             else:
                 info['geoblocked'] = False
+            if info['geoblocked'] and not self._is_logged_in():
+                # FIXME Is there a way to ignore this restriction only in Estonia?
+                self.raise_geo_restricted(
+                    msg='This video/audio is geoblocked, you may have to login to access it.')
             if json_has_value(media, 'restrictions.drm'):
                 info['drm'] = json_get_value(media, 'restrictions.drm')
             else:
@@ -720,7 +701,6 @@ class UglyERRTVIE(_UglyERRBaseIE):
                 self.report_drm(video_id)
             # media_type can be video/audio, for debugging only
             info['media_type'] = media['type']
-
             if json_has_value(media, 'headingEt'):
                 # A good candidate to extract 'episode', but rarely available.
                 info['title'] = media['headingEt']
@@ -979,18 +959,6 @@ class UglyERRTVIE(_UglyERRBaseIE):
                     for item in season['contents']:
                         yield item
 
-    def _api_login(self, url_dict, video_id):
-        username, password = self._get_login_info()
-        if username is None:
-            return {}
-        return self._download_json(
-            self._ERR_API_LOGIN % url_dict, video_id,
-            note='Logging in', errnote='Unable to log in', fatal=False,
-            data=urlencode_postdata({
-                'pass': password,
-                'user': username,
-            }))
-
     def _real_extract(self, url):
         self._reset_format_counters()
         info = dict()
@@ -1002,8 +970,6 @@ class UglyERRTVIE(_UglyERRBaseIE):
         # webpage_url may get changed to a canonical url later on
         info['webpage_url'] = url
 
-        if not self._is_logged_in():
-            self._login(url_dict, url_dict['id'])
         self._set_headers(url_dict)
 
         if json_has_value(url_dict, 'playlist_id'):
@@ -1067,7 +1033,6 @@ class UglyERRJupiterIE(UglyERRTVIE):
     _ERR_API_GET_CONTENT = 'https://services.err.ee/api/v2/vodContent/getContentPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = 'https://services.err.ee/api/v2/vodContent/getContentPageDataForUser?contentId=%(id)s'
     _ERR_API_USE_SEASONLIST = True
-    _ERR_API_LOGIN = 'https://services.err.ee/api/auth/login'
     _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://jupiter.err.ee)/(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]*))?)(?P<leftover>.+)?\Z'
     _TESTS = [{
         # 0 An episode
