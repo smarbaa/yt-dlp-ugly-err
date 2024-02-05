@@ -247,16 +247,7 @@ class _UglyERRBaseIE(InfoExtractor):
         mobj = re.match(type(self)._VALID_URL, url)
         return mobj.groupdict()
 
-    def _debug_message(self, msg):
-        """Writes debug message only if verbose flag is set"""
-        if self._downloader.params.get('verbose', False):
-            self.to_screen('[debug] ' + msg)
-
-    def _debug_json(self, obj, sort_keys=False, msg=None):
-        """Prettyprints json structure  only if verbose flag is set"""
-        self._debug_message(
-            (msg if msg else '') + json.dumps(obj, indent=4, sort_keys=sort_keys))
-
+    # For debugging use self.write_debug()
     def _dump_json(self, obj, sort_keys=False, msg=None, filename=None):
         """Dumps prettyprinted json structure"""
         if filename:
@@ -474,147 +465,31 @@ class UglyERRNewsIE(_UglyERRBaseIE):
         return info
 
 
-class UglyERRTVIE(_UglyERRBaseIE):
-    IE_DESC = 'etv.err.ee, etv2.err.ee, etvpluss.err.ee, lasteekraan.err.ee'
+class _UglyERRLoginIE(_UglyERRBaseIE):
     _ERR_API_GET_CONTENT = '%(prefix)s/api/tv/getTvPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
     _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(root_content_id)s&periodStart=0&periodEnd=0&fullData=1'
     _ERR_API_SHOWDATA_KEY = 'mainContent'
     _ERR_API_USE_SEASONLIST = False
-    _ERR_CHANNELS = r'etv|etv2|etvpluss|lasteekraan'
+    _ERR_CHANNELS = r''
     _ERR_LOGIN_DATA = {}
     _ERR_LOGIN_SUPPORTED = True
     _NETRC_MACHINE = 'err.ee'
-    _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://(?P<channel>%(channels)s).err.ee)/(?:(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]+))?)|(?P<playlist_id>[^/#?]*))(?P<leftover>[/?#].+)?\Z' % {
-        'channels': _ERR_CHANNELS
-    }
-    _TESTS = [{
-        # 0 etv.err.ee
-        'url': 'https://etv.err.ee/1608179695/osoon',
-        'md5': 'f3e007333f44b084a3bbe69a4b8b75e0',
-        'info_dict': {
-            'id': '1608179695',
-            'display_id': 'osoon',
-            'ext': 'mp4',
-            'title': 'Osoon - S28E1044 - Ornitoloogiaühing 100',
-            'episode': 'Ornitoloogiaühing 100',
-            'series': 'Osoon',
-            'season_number': 28,
-            'episode_number': 1044,
-            'thumbnail':
-            'https://s.err.ee/photo/crop/2019/09/06/681521h8760t8.jpg',
-            'description': 'md5:15f239cbbc45900e345850aff2679ddc',
-            'upload_date': '20210415',
-            'timestamp': 1618518000,
-            'season': 'Season 28',
-            'content_type': 'episode',
-            'geoblocked': False,
-            'release_timestamp': 1691211600,
-            'drm': False,
-            'release_date': '20230805',
-            'media_type': 'video',
-            'alt_title': 'Ornitoloogiaühing 100',
-            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
-            'series_type': 2,
-        },
-        'params': {
-            'format': 'bestvideo',
-            'noplaylist': True,
-            'skip_download': 'm3u8',
-        },
-    }, {
-        # 1 etv2.err.ee
-        'url': 'https://etv2.err.ee/1027382/tahelaev',
-        'md5': 'a4af76897e2462417d503c03d114ca28',
-        'info_dict': {
-            'id': '1027382',
-            'display_id': 'tahelaev',
-            'ext': 'mp4',
-            'title': 'Teemaõhtu. Ilon Wikland 90 - 202001 - Ilon Wikland osa: 299',
-            'episode': 'Ilon Wikland osa: 299',
-            'series': 'Teemaõhtu. Ilon Wikland 90',
-            'season': '202001',
-            'episode_id': '20200123',
-            'thumbnail':
-            'https://s.err.ee/photo/crop/2014/01/03/260872hb306t8.jpg',
-            'description': 'md5:363344e5ff4a1834fac32fd2b11b3487',
-            'upload_date': '20200123',
-            'timestamp': 1579788000,
-            'series_type': 1,
-            'drm': False,
-            'content_type': 'episode',
-            'alt_title': 'Ilon Wikland',
-            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
-            'release_timestamp': 1581276300,
-            'release_date': '20200209',
-            'geoblocked': False,
-            'media_type': 'video',
-        },
-        'params': {
-            'format': 'bestvideo',
-            'noplaylist': True,
-            'skip_download': 'm3u8',  # Otherwise fails as fragment too short
-        },
-    }, {
-        # 2 etvpluss.err.ee
-        'url':
-        'https://etvpluss.err.ee/1203535/bodroe-utro',
-        'md5': '43d59b96b1c5b7da5d3a1ea74089aad2',
-        'info_dict': {
-            'id': '1203535',
-            'display_id': 'bodroe-utro',
-            'ext': 'mp4',
-            'title': 'Бодрое утро - 202012',
-            'series': 'Бодрое утро',
-            'series_type': 1,
-            'season': '202012',
-            'episode_id': '20201210',
-            'thumbnail':
-            'https://s.err.ee/photo/crop/2019/08/26/676848h2901t8.jpg',
-            'description': 'md5:0ff25a30bab46810bafa7c97950de69f',
-            'upload_date': '20201210',
-            'timestamp': 1607605201,
-            'content_type': 'episode',
-            'release_timestamp': 1707367200,
-            'release_date': '20240208',
-            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
-            'geoblocked': False,
-            'drm': False,
-            'media_type': 'video',
-            'subtitles': {
-                'et': [
-                    {'url': r're:^https?://.+\.err\.ee/hls/vod/1143697/2/v/index-f3\.m3u8'},
-                    {'url': r're:^https?://.+\.err\.ee/dash/vod/1143697/2/v/sub-f3\.vtt'},
-                ],
-            },
-        },
-        'params': {
-            'format': 'bestvideo',
-            'noplaylist': True,
-            'skip_download': 'm3u8',  # Otherwise fails as fragment too short
-        },
-    }, {
-        # 3 etv.err.ee playlist
-        '_type': 'playlist',
-        'url':
-        'https://etv.err.ee/4x4_tsukotka',
-        'info_dict': {
-            'id': '1608156007',
-            'display_id': '4x4_tsukotka',
-            'title': '4x4. Tšukotka',
-            'series_type': 5,
-        },
-        'playlist_count': 10,
-        'params': {
-            'format': 'bestvideo',
-        },
-    }]
+    _VALID_URL = ''
 
     def _real_initialize(self):
-        super(UglyERRTVIE, self)._real_initialize()
+        super(_UglyERRLoginIE, self)._real_initialize()
+
+    def __del__(self):
+        if self._is_logged_in():
+            # TODO logout
+            self.write_debug(msg='Logging out')
 
     def _perform_login(self, username, password):
         if (not self._ERR_LOGIN_SUPPORTED or not username or not password):
+            return
+        if self._is_logged_in():
+            self.write_debug('Already logged in')
             return
         login_data = self._download_json(
             'https://services.err.ee/api/auth/login', 'UglyERRLogin',
@@ -1024,12 +899,149 @@ class UglyERRTVIE(_UglyERRBaseIE):
         return info
 
 
-class UglyERRJupiterIE(UglyERRTVIE):
-    IE_DESC = 'jupiter.err.ee'
+class UglyERRTVIE(_UglyERRLoginIE):
+    IE_DESC = 'etv.err.ee, etv2.err.ee, etvpluss.err.ee, lasteekraan.err.ee'
+    _ERR_API_GET_CONTENT = '%(prefix)s/api/tv/getTvPageData?contentId=%(id)s'
+    _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
+    _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(root_content_id)s&periodStart=0&periodEnd=0&fullData=1'
+    _ERR_API_SHOWDATA_KEY = 'mainContent'
+    _ERR_API_USE_SEASONLIST = False
+    _ERR_CHANNELS = r'etv|etv2|etvpluss|lasteekraan'
+    _ERR_LOGIN_SUPPORTED = True
+    _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://(?P<channel>%(channels)s).err.ee)/(?:(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]+))?)|(?P<playlist_id>[^/#?]*))(?P<leftover>[/?#].+)?\Z' % {
+        'channels': _ERR_CHANNELS
+    }
+    _TESTS = [{
+        # 0 etv.err.ee
+        'url': 'https://etv.err.ee/1608179695/osoon',
+        'md5': 'f3e007333f44b084a3bbe69a4b8b75e0',
+        'info_dict': {
+            'id': '1608179695',
+            'display_id': 'osoon',
+            'ext': 'mp4',
+            'title': 'Osoon - S28E1044 - Ornitoloogiaühing 100',
+            'episode': 'Ornitoloogiaühing 100',
+            'series': 'Osoon',
+            'season_number': 28,
+            'episode_number': 1044,
+            'thumbnail':
+            'https://s.err.ee/photo/crop/2019/09/06/681521h8760t8.jpg',
+            'description': 'md5:15f239cbbc45900e345850aff2679ddc',
+            'upload_date': '20210415',
+            'timestamp': 1618518000,
+            'season': 'Season 28',
+            'content_type': 'episode',
+            'geoblocked': False,
+            'release_timestamp': 1691211600,
+            'drm': False,
+            'release_date': '20230805',
+            'media_type': 'video',
+            'alt_title': 'Ornitoloogiaühing 100',
+            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
+            'series_type': 2,
+        },
+        'params': {
+            'format': 'bestvideo',
+            'noplaylist': True,
+            'skip_download': 'm3u8',
+        },
+    }, {
+        # 1 etv2.err.ee
+        'url': 'https://etv2.err.ee/1027382/tahelaev',
+        'md5': 'a4af76897e2462417d503c03d114ca28',
+        'info_dict': {
+            'id': '1027382',
+            'display_id': 'tahelaev',
+            'ext': 'mp4',
+            'title': 'Teemaõhtu. Ilon Wikland 90 - 202001 - Ilon Wikland osa: 299',
+            'episode': 'Ilon Wikland osa: 299',
+            'series': 'Teemaõhtu. Ilon Wikland 90',
+            'season': '202001',
+            'episode_id': '20200123',
+            'thumbnail':
+            'https://s.err.ee/photo/crop/2014/01/03/260872hb306t8.jpg',
+            'description': 'md5:363344e5ff4a1834fac32fd2b11b3487',
+            'upload_date': '20200123',
+            'timestamp': 1579788000,
+            'series_type': 1,
+            'drm': False,
+            'content_type': 'episode',
+            'alt_title': 'Ilon Wikland',
+            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
+            'release_timestamp': 1581276300,
+            'release_date': '20200209',
+            'geoblocked': False,
+            'media_type': 'video',
+        },
+        'params': {
+            'format': 'bestvideo',
+            'noplaylist': True,
+            'skip_download': 'm3u8',  # Otherwise fails as fragment too short
+        },
+    }, {
+        # 2 etvpluss.err.ee
+        'url':
+        'https://etvpluss.err.ee/1203535/bodroe-utro',
+        'md5': '43d59b96b1c5b7da5d3a1ea74089aad2',
+        'info_dict': {
+            'id': '1203535',
+            'display_id': 'bodroe-utro',
+            'ext': 'mp4',
+            'title': 'Бодрое утро - 202012',
+            'series': 'Бодрое утро',
+            'series_type': 1,
+            'season': '202012',
+            'episode_id': '20201210',
+            'thumbnail':
+            'https://s.err.ee/photo/crop/2019/08/26/676848h2901t8.jpg',
+            'description': 'md5:0ff25a30bab46810bafa7c97950de69f',
+            'upload_date': '20201210',
+            'timestamp': 1607605201,
+            'content_type': 'episode',
+            'release_timestamp': 1707367200,
+            'release_date': '20240208',
+            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
+            'geoblocked': False,
+            'drm': False,
+            'media_type': 'video',
+            'subtitles': {
+                'et': [
+                    {'url': r're:^https?://.+\.err\.ee/hls/vod/1143697/2/v/index-f3\.m3u8'},
+                    {'url': r're:^https?://.+\.err\.ee/dash/vod/1143697/2/v/sub-f3\.vtt'},
+                ],
+            },
+        },
+        'params': {
+            'format': 'bestvideo',
+            'noplaylist': True,
+            'skip_download': 'm3u8',  # Otherwise fails as fragment too short
+        },
+    }, {
+        # 3 etv.err.ee playlist
+        '_type': 'playlist',
+        'url':
+        'https://etv.err.ee/4x4_tsukotka',
+        'info_dict': {
+            'id': '1608156007',
+            'display_id': '4x4_tsukotka',
+            'title': '4x4. Tšukotka',
+            'series_type': 5,
+        },
+        'playlist_count': 10,
+        'params': {
+            'format': 'bestvideo',
+        },
+    }]
+
+
+class UglyERRJupiterIE(_UglyERRLoginIE):
+    IE_DESC = 'jupiter.err.ee, jupiterpluss.err.ee'
     _ERR_API_GET_CONTENT = 'https://services.err.ee/api/v2/vodContent/getContentPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = 'https://services.err.ee/api/v2/vodContent/getContentPageDataForUser?contentId=%(id)s'
     _ERR_API_USE_SEASONLIST = True
-    _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://jupiter.err.ee)/(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]*))?)(?P<leftover>.+)?\Z'
+    _ERR_API_SHOWDATA_KEY = 'mainContent'
+    _ERR_LOGIN_SUPPORTED = True
+    _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://jupiter(pluss)?.err.ee)/(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]*))?)(?P<leftover>.+)?\Z'
     _TESTS = [{
         # 0 An episode
         'url': 'https://jupiter.err.ee/1103424/paevabiit',
@@ -1125,14 +1137,8 @@ class UglyERRJupiterIE(UglyERRTVIE):
             'format': 'bestvideo',
             'noplaylist': False,
         },
-    }]
-
-
-class UglyERRJupiterPlussIE(UglyERRJupiterIE):
-    IE_DESC = 'jupiterpluss.err.ee'
-    _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://jupiterpluss.err.ee)/(?:(?P<id>\d+)(?:/(?P<display_id>[^/#?]*))?)(?P<leftover>.+)?\Z'
-    _TESTS = [{
-        # 0 An episode
+    }, {
+        # 5 An episode
         'url': 'https://jupiterpluss.err.ee/1608841228/kofe',
         'md5': 'b81565b54b9536d426c66eae92bb4b03',
         'info_dict': {
@@ -1161,7 +1167,7 @@ class UglyERRJupiterPlussIE(UglyERRJupiterIE):
             'skip_download': 'm3u8',  # Otherwise fails as fragment too short
         },
     }, {
-        # 1 An episode
+        # 6 An episode
         'url': 'https://jupiterpluss.err.ee/1608835006/orbita',
         'md5': '26c09d50117c923b63f8484ce840aba9',
         'info_dict': {
@@ -1192,7 +1198,7 @@ class UglyERRJupiterPlussIE(UglyERRJupiterIE):
     }]
 
 
-class UglyERRRadioIE(UglyERRTVIE):
+class UglyERRRadioIE(_UglyERRLoginIE):
     IE_DESC = 'vikerraadio.err.ee, klassikaraadio.err.ee, r2.err.ee, r4.err.ee'
     _ERR_API_GET_CONTENT = '%(prefix)s/api/radio/getRadioPageData?contentId=%(id)s'
     _ERR_API_SHOWDATA_KEY = 'pageControlData.mainContent'
