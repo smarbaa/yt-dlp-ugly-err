@@ -184,7 +184,6 @@ class _UglyERRBaseIE(InfoExtractor):
         return format_desc['format_id']
 
     def _sanitize_formats_and_subtitles(self, formats, subtitles):
-        fmts = []
         for format in formats:
             if (format.get('vcodec', 'none') == 'none'):
                 if format.get('language', 'ch') == 'ch':
@@ -217,7 +216,6 @@ class _UglyERRBaseIE(InfoExtractor):
                     self._next_format_postfix(format['format_id']))
                 format['format_note'] = '%dp' % format['height']
                 format['format'] = '%(format_id)s - %(width)dx%(height)d (%(format_note)s)' % format
-            fmts.append(format)
 
         subs = {}
         for lang, subtitle in subtitles.items():
@@ -226,7 +224,7 @@ class _UglyERRBaseIE(InfoExtractor):
             lang = lst[0] if len(lst) > 0 else lang
             subs[lang] = subtitle
 
-        return fmts, subs
+        return formats, subs
 
     def _extract_formats(self, master_url, video_id):
         formats, _ = self._extract_formats_and_subtitles(master_url, video_id)
@@ -965,14 +963,14 @@ class UglyERRTVIE(_UglyERRBaseIE):
         url_dict = self._extract_ids(url)
         if url_dict['id']:
             info['id'] = url_dict['id']
-        if json_has_value(url_dict, 'display_id'):
+        if url_dict.get('display_id'):
             info['display_id'] = url_dict['display_id']
         # webpage_url may get changed to a canonical url later on
         info['webpage_url'] = url
 
         self._set_headers(url_dict)
 
-        if json_has_value(url_dict, 'playlist_id'):
+        if url_dict.get('playlist_id'):
             playlist_id = url_dict['playlist_id']
             webpage = self._download_webpage(url, playlist_id)
             mobj = re.search(
@@ -989,7 +987,7 @@ class UglyERRTVIE(_UglyERRBaseIE):
             url_dict['root_content_id'] = root_content_id
             info.update(self._fetch_playlist(
                 url_dict, playlist_id, include_root=True, extract_medias=False, extract_thumbnails=False))
-        elif 'id' in info:
+        elif info.get('id'):
             video_id = info['id']
             jsonpage = self._api_get_content(url_dict, video_id)
 
@@ -997,7 +995,7 @@ class UglyERRTVIE(_UglyERRBaseIE):
 
             if (url not in self._ERR_URL_SET
                     and not self._downloader.params.get('noplaylist')
-                    and json_has_value(show_data, 'rootContent')):
+                    and show_data.get('rootContent')):
                 root_content_id = str(json_find_value(show_data, 'rootContentId'))
                 playlist_data = None
                 if self._ERR_API_USE_SEASONLIST:
@@ -1011,9 +1009,7 @@ class UglyERRTVIE(_UglyERRBaseIE):
                         root_data=show_data['rootContent'],
                         playlist_data=playlist_data))
 
-            if (not json_has_value(info, 'entries')
-                    or len(list(filter(lambda x: x['id'] == video_id, info['entries']))) == 0):
-                # Should the video pointed to by the url be downloaded too?
+            if not info.get('entries'):
                 entry = self._extract_entry(show_data, channel=url_dict.get('channel', None))
                 entry.update(self._extract_extra(jsonpage))
                 if json_has_value(info, 'entries'):
