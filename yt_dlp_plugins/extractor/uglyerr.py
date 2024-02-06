@@ -26,7 +26,7 @@ from yt_dlp.utils import (
 
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
-#   FIXME   Beautify UglyERRTVIE
+#   FIXME   Beautify _UglyERRLoginIE
 
 
 def json_find_node(obj, criteria):
@@ -75,21 +75,23 @@ def json_has_value(obj, key):
     """Checks for existence of key1.key2...keyn etc"""
     j = obj
     for k in key.split('.'):
-        if isinstance(j, dict) and (k in j) and j[k]:
+        if isinstance(j, (dict, list, tuple)) and (k in j) and j[k]:
             j = j[k]
         else:
             return False
     return True
 
 
-def json_get_value(obj, key):
-    """Gets value of key1.key2...keyn etc, or None"""
+def json_get_value(obj, key, default=None):
+    """Gets value at key1.key2...keyn etc, or a default value"""
     j = obj
     for k in key.split('.'):
         if isinstance(j, dict) and (k in j) and j[k]:
             j = j[k]
+        elif isinstance(j, (list, tuple)) and k.isdigit() and int(k) < len(j):
+            j = j[int(k)]
         else:
-            return None
+            return default
     return j
 
 
@@ -480,11 +482,6 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
     def _real_initialize(self):
         super(_UglyERRLoginIE, self)._real_initialize()
 
-    def __del__(self):
-        if self._is_logged_in():
-            # TODO logout
-            self.write_debug(msg='Logging out')
-
     def _perform_login(self, username, password):
         if (not self._ERR_LOGIN_SUPPORTED or not username or not password):
             return
@@ -557,19 +554,13 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
         """Extracts formats, subtitles"""
         info = {}
         formats, subtitles = [], {}
-        for media in obj['medias']:
-            if json_has_value(media, 'restrictions.geoBlock'):
-                info['geoblocked'] = json_get_value(media, 'restrictions.geoBlock')
-            else:
-                info['geoblocked'] = False
+        for media in obj.get('medias') or []:
+            info['geoblocked'] = json_get_value(media, 'restrictions.geoBlock', False)
             if info['geoblocked'] and not self._is_logged_in():
                 # FIXME Is there a way to ignore this restriction only in Estonia?
                 self.raise_geo_restricted(
                     msg='This video/audio is geoblocked, you may have to login to access it.')
-            if json_has_value(media, 'restrictions.drm'):
-                info['drm'] = json_get_value(media, 'restrictions.drm')
-            else:
-                info['drm'] = False
+            info['drm'] = json_get_value(media, 'restrictions.drm', False)
             if info['drm']:
                 self.report_drm(video_id)
             # media_type can be video/audio, for debugging only
@@ -614,8 +605,8 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
             info['alt_title'] = obj['subHeading']
 
         if json_get_value(obj, 'rootContent.type') == 'series':
-            info['series'] = obj['rootContent']['heading']
-            info['series_type'] = obj['rootContent']['seriesType']
+            info['series'] = json_get_value(obj, 'rootContent.heading')
+            info['series_type'] = json_get_value(obj, 'rootContent.seriesType')
             # rootContent.seriesType:
             # 1 is monthly,
             # 2, 3 is seasonal,
