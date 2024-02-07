@@ -66,7 +66,8 @@ def json_find_value(obj, key):
             if val is not None:
                 return val
     elif isinstance(obj, dict):
-        if json_has_value(obj, key):
+        val = json_get_value(obj, key)
+        if val is not None:
             return json_get_value(obj, key)
         for k in obj:
             val = json_find_value(obj[k], key)
