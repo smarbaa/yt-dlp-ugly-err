@@ -29,14 +29,16 @@ from yt_dlp.utils import (
 #   FIXME   Beautify _UglyERRLoginIE
 
 
-def json_find_node(obj, criteria):
-    """Searches recursively depth first for a node that satisfies all
-    criteria and returns it. None if nothing is found."""
+def json_find_match(obj, criteria):
+    """
+    Searches depth first for an object that matches all
+    criteria and returns it. None if nothing is found.
+    """
     if not isinstance(criteria, dict):
         raise TypeError('Should be dictionary, but is %s' % type(criteria))
     if isinstance(obj, (tuple, list)):
         for element in obj:
-            val = json_find_node(element, criteria)
+            val = json_find_match(element, criteria)
             if val is not None:
                 return val
     elif isinstance(obj, dict):
@@ -47,15 +49,17 @@ def json_find_node(obj, criteria):
         if not failed:
             return obj
         for k in obj:
-            val = json_find_node(obj[k], criteria)
+            val = json_find_match(obj[k], criteria)
             if val is not None:
                 return val
     return None
 
 
 def json_find_value(obj, key):
-    """Searches recursively depth first for a key (key1.key2...keyn) in json
-    structure and returns it's value, i.e. that what it points to, or None."""
+    """
+    Searches depth first for a key (key1.key2...keyn) in json
+    structure and returns it's value, i.e. that what it points to, or None.
+    """
     if isinstance(obj, (tuple, list)):
         for element in obj:
             val = json_find_value(element, key)
@@ -72,27 +76,31 @@ def json_find_value(obj, key):
 
 
 def json_has_value(obj, key):
-    """Checks for existence of key1.key2...keyn etc"""
-    j = obj
-    for k in key.split('.'):
-        if isinstance(j, (dict, list, tuple)) and (k in j) and j[k]:
-            j = j[k]
-        else:
-            return False
-    return True
+    """
+    Checks for existence of value at key1.key2...keyn etc.
+    '', (), [], {}, '', 0 are considered as no value, i.e.
+    anything that converts to boolean False.
+    """
+    return json_get_value(obj, key, convert=bool, default=False)
 
 
-def json_get_value(obj, key, default=None):
-    """Gets value at key1.key2...keyn etc, or a default value"""
-    j = obj
+def json_get_value(obj, key, convert=None, default=None):
+    """
+    Gets value at key1.key2...keyn etc, or a default value.
+    Result can be converted by 'convert'.
+    """
     for k in key.split('.'):
-        if isinstance(j, dict) and (k in j) and j[k]:
-            j = j[k]
-        elif isinstance(j, (list, tuple)) and k.isdigit() and int(k) < len(j):
-            j = j[int(k)]
+        if isinstance(obj, dict) and (k in obj) and obj[k]:
+            obj = obj[k]
+        elif isinstance(obj, (list, tuple)) and k.isdigit() and int(k) < len(obj):
+            obj = obj[int(k)]
         else:
             return default
-    return j
+    return obj if not convert else convert(obj)
+
+
+def string_or_none(v):
+    return str(v) if v else None
 
 
 def padding_width(count):
@@ -254,7 +262,8 @@ class _UglyERRBaseIE(InfoExtractor):
         """Dumps prettyprinted json structure"""
         if filename:
             with open(filename, mode='a', encoding='utf-8') as f:
-                f.write(f'\n{msg}\n')
+                if msg:
+                    f.write(f'\n{msg}\n')
                 f.write(json.dumps(obj, indent=4, sort_keys=sort_keys))
         else:
             self.to_screen('[debug] ' + (msg if msg else '') + json.dumps(obj, indent=4, sort_keys=sort_keys))
@@ -555,12 +564,12 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
         info = {}
         formats, subtitles = [], {}
         for media in obj.get('medias') or []:
-            info['geoblocked'] = json_get_value(media, 'restrictions.geoBlock', False)
+            info['geoblocked'] = json_get_value(media, 'restrictions.geoBlock', default=False)
             if info['geoblocked'] and not self._is_logged_in():
                 # FIXME Is there a way to ignore this restriction only in Estonia?
                 self.raise_geo_restricted(
                     msg='This video/audio is geoblocked, you may have to login to access it.')
-            info['drm'] = json_get_value(media, 'restrictions.drm', False)
+            info['drm'] = json_get_value(media, 'restrictions.drm', default=False)
             if info['drm']:
                 self.report_drm(video_id)
             # media_type can be video/audio, for debugging only
@@ -570,17 +579,17 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                 info['title'] = media['headingEt']
 
             if url := traverse_obj(media,
-                ('src', 'hls', {url_or_none}, {sanitize_url},
-                    {lambda x: self._rewrite_url(x)})):
+                                   ('src', 'hls', {url_or_none}, {sanitize_url},
+                                    {lambda x: self._rewrite_url(x)})):
                 fmts, subs = self._sanitize_formats_and_subtitles(
                     *self._extract_m3u8_formats_and_subtitles(
                         url, video_id, 'mp4', m3u8_id='hls', fatal=False))
                 formats.extend(fmts)
                 self._merge_subtitles(subs, target=subtitles)
 
-            if url := traverse_obj(media,
-                ('src', 'dash', {url_or_none}, {sanitize_url},
-                    {lambda x: self._rewrite_url(x)})):
+            if url := traverse_obj(media, ('src', 'dash', {url_or_none},
+                                           {sanitize_url}, {lambda x:
+                                                            self._rewrite_url(x)})):
                 fmts, subs = self._sanitize_formats_and_subtitles(
                     *self._extract_mpd_formats_and_subtitles(
                         url, video_id, mpd_id='dash', fatal=False))
@@ -594,15 +603,13 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
     def _extract_entry(self, obj, channel=None, extract_medias=True, extract_thumbnails=True):
         info = {}
         info['_type'] = 'video' if extract_medias else 'url'
-        info['content_type'] = obj['type']
-        info['webpage_url'] = obj['canonicalUrl']
-        info['id'] = str(obj['id'])
-        info['display_id'] = obj['fancyUrl']
-        if 'publicStart' in obj:
-            info['timestamp'] = obj['publicStart']
-        info['title'] = obj['heading']
-        if json_has_value(obj, 'subHeading'):
-            info['alt_title'] = obj['subHeading']
+        info['content_type'] = obj.get('type')
+        info['webpage_url'] = obj.get('canonicalUrl')
+        info['id'] = str(obj.get('id'))
+        info['display_id'] = obj.get('fancyUrl')
+        info['timestamp'] = json_get_value(obj, 'publicStart', int_or_none)
+        info['title'] = obj.get('heading')
+        info['alt_title'] = json_get_value(obj, 'subHeading', string_or_none)
 
         if json_get_value(obj, 'rootContent.type') == 'series':
             info['series'] = json_get_value(obj, 'rootContent.heading')
@@ -611,13 +618,13 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
             # 1 is monthly,
             # 2, 3 is seasonal,
             # 5 is shortSeriesList.
-            if info['series_type'] == 1:
+            if info['series_type'] == 1 and json_has_value(info, 'timestamp'):
                 updated = date.fromtimestamp(info['timestamp'])
                 info['season'] = updated.strftime('%Y%m')
                 info['episode_id'] = updated.strftime('%Y%m%d')
             else:
-                info['episode_number'] = obj['episode']
-                info['season_number'] = obj['season']
+                info['episode_number'] = obj.get('episode')
+                info['season_number'] = obj.get('season')
 
         if json_has_value(obj, 'lead'):
             info['description'] = clean_html(obj['lead'])
@@ -636,9 +643,9 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
             info.update(self._merge_thumbnails(self._extract_thumbnails(obj, 'photos')))
 
         if extract_medias:
-            info.update(self._extract_medias(obj, obj['id']))
+            info.update(self._extract_medias(obj, info['id']))
         else:
-            info['url'] = obj['canonicalUrl']
+            info['url'] = obj.get('canonicalUrl')
 
         info['license'] = self._ERR_TERMS_AND_CONDITIONS_URL
 
@@ -746,11 +753,11 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
         if include_root:
             if not root_data:
                 root_data = json_find_value(playlist_data, 'rootContent')
-            info['id'] = str(root_data['id'])
-            info['display_id'] = root_data['url']
-            info['title'] = sanitize_title(root_data['heading'])
+            info['id'] = str(root_data.get('id'))
+            info['display_id'] = root_data.get('url')
+            info['title'] = sanitize_title(root_data.get('heading'))
             info['_type'] = 'playlist'
-            info['series_type'] = root_data['seriesType']
+            info['series_type'] = root_data.get('seriesType')
             if json_has_value(root_data, 'lead'):
                 info['description'] = clean_html(root_data['lead'])
             elif json_has_value(root_data, 'body'):
@@ -810,7 +817,7 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                             udict = url_dict.copy()
                             udict['id'] = month['firstContentId']
                             jsonpage = self._api_get_content(udict, video_id)
-                            month = json_find_node(jsonpage, month)
+                            month = json_find_match(jsonpage, month)
                         for item in month['contents']:
                             yield item
             elif playlist_data['type'] in ['shortSeriesList', 'seasonal']:
@@ -819,7 +826,7 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                         udict = url_dict.copy()
                         udict['id'] = season['firstContentId']
                         jsonpage = self._api_get_content(udict, video_id)
-                        season = json_find_node(jsonpage, season)
+                        season = json_find_match(jsonpage, season)
                     for item in season['contents']:
                         yield item
 
@@ -1565,7 +1572,8 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
         info['id'] = list_data.get('url')
         info['media_type'] = list_data.get('type')
         info['timestamp'] = traverse_obj(list_data, ('date', {str_or_none},
-            {lambda x: self._timestamp_from_date(x)}))
+                                                     {lambda x:
+                                                      self._timestamp_from_date(x)}))
 
         info['url'] = '%(prefix)s/%(channel)s/vaata/%(id)s' % {
             'prefix': url_dict['prefix'],
@@ -1579,8 +1587,8 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
         info['title'] = traverse_obj(page, ('info', 'title'))
         info['media_type'] = traverse_obj(page, ('info', 'archiveType'))
         info['description'] = traverse_obj(page, ('info', 'synopsis'))
-        if dsc1 := traverse_obj(
-            page, ('info', 'description')) and (dsc0 := info.get('description')):
+        if (dsc1 := traverse_obj(page, ('info', 'description'))
+                and (dsc0 := info.get('description'))):
             info['description'] = dsc0 + '\n\n' + dsc1
 
         info['webpage_url'] = traverse_obj(page, ('info', 'fullUrl'))
@@ -1651,7 +1659,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
 
         # Demangle title
         if (info.get('series') and info.get('episode_number')
-            and info.get('episode') and not info.get('episode').isdigit()):
+                and info.get('episode') and not info.get('episode').isdigit()):
             info['title'] = f'{info["series"]} - {info["episode_number"]} - {info["episode"]}'
 
         info['title'] = sanitize_title(info['title'])
@@ -1704,7 +1712,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
                 '%(prefix)s/api/v1/content/%(channel)s/%(id)s' % url_dict, video_id)
             if (url not in self._ERR_URL_SET
                     and not self._downloader.params.get('noplaylist')
-                and (playlist_id := traverse_obj(page, ('seriesList', 'seriesUrl')))):
+                    and (playlist_id := traverse_obj(page, ('seriesList', 'seriesUrl')))):
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))
 
