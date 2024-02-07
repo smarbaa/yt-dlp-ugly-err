@@ -57,8 +57,8 @@ def json_find_match(obj, criteria):
 
 def json_find_value(obj, key):
     """
-    Searches depth first for a key (key1.key2...keyn) in json
-    structure and returns it's value, i.e. that what it points to, or None.
+    Searches depth first for a key (key1.key2...key_n) in json
+    structure and returns its value, i.e. that what it points to, or None.
     """
     if isinstance(obj, (tuple, list)):
         for element in obj:
@@ -77,7 +77,7 @@ def json_find_value(obj, key):
 
 def json_has_value(obj, key):
     """
-    Checks for existence of value at key1.key2...keyn etc.
+    Checks for existence of value at key1.key2...key_n etc.
     '', (), [], {}, '', 0 are considered as no value, i.e.
     anything that converts to boolean False.
     """
@@ -86,7 +86,7 @@ def json_has_value(obj, key):
 
 def json_get_value(obj, key, convert=None, default=None):
     """
-    Gets value at key1.key2...keyn etc, or a default value.
+    Gets value at key1.key2...key_n etc., or a default value.
     Result can be converted by 'convert'.
     """
     for k in key.split('.'):
@@ -113,7 +113,7 @@ def sanitize_title(title):
     sorts of quotes and fancy characters. """
     if not title:
         return None
-    title = re.sub(r'[*+"\'«»„"`´]+', '', title)
+    title = re.sub(r'[*+"\'«»„`´]+', '', title)
     title = re.sub(r'[,;]+', ' ', title)
     title = re.sub(r'\s+', ' ', title)
     title = title.replace(u'\u2014', '-')\
@@ -177,7 +177,7 @@ class _UglyERRBaseIE(InfoExtractor):
     def _next_format_postfix(self, format_id):
         """
         Increments counter associated to format_id, and returns "-counter"
-        if counter > 0, otherwise returns a empty string.
+        if counter > 0, otherwise returns an empty string.
         """
         counter = (self._ERR_FORMAT_COUNTERS[format_id] + 1) if (
             format_id in self._ERR_FORMAT_COUNTERS) else 0
@@ -194,38 +194,38 @@ class _UglyERRBaseIE(InfoExtractor):
         return format_desc['format_id']
 
     def _sanitize_formats_and_subtitles(self, formats, subtitles):
-        for format in formats:
-            if (format.get('vcodec', 'none') == 'none'):
-                if format.get('language', 'ch') == 'ch':
+        for fmt in formats:
+            if fmt.get('vcodec', 'none') == 'none':
+                if fmt.get('language', 'ch') == 'ch':
                     # Chamoru [ch] extremely unlikely, seems to mean
                     # 'original'.
-                    format['language'] = 'original'
-                    format['format_note'] = 'Original'
-                elif format.get('language', None) is None:
-                    format['language'] = 'unknown'
-                    format['format_note'] = 'Unknown'
-                elif format.get('language', '') == 'nl':
+                    fmt['language'] = 'original'
+                    fmt['format_note'] = 'Original'
+                elif fmt.get('language', None) is None:
+                    fmt['language'] = 'unknown'
+                    fmt['format_note'] = 'Unknown'
+                elif fmt.get('language', '') == 'nl':
                     # Nederlands [nl] seems to mean consistently
                     # 'et for visually impaired'.
-                    format['language'] = 'et_vis_imp'
-                    format['format_note'] = 'Eesti vaegnägijatele'
+                    fmt['language'] = 'et_vis_imp'
+                    fmt['format_note'] = 'Eesti vaegnägijatele'
 
-                lst = self._configuration_arg(format['language'], ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
+                lst = self._configuration_arg(fmt['language'], ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
                 if len(lst) > 0:
-                    format['language'] = str(lst[0])
+                    fmt['language'] = str(lst[0])
 
-                format['format_id'] = '%s%s' % (
-                    format['language'],
-                    self._next_format_postfix(format['language']))
+                fmt['format_id'] = '%s%s' % (
+                    fmt['language'],
+                    self._next_format_postfix(fmt['language']))
 
-            format['format_id'] = self._assign_format_id(format)
+            fmt['format_id'] = self._assign_format_id(fmt)
 
-            if format.get('vcodec', 'none') != 'none':
-                format['format_id'] = '%s%s' % (
-                    format['format_id'],
-                    self._next_format_postfix(format['format_id']))
-                format['format_note'] = '%dp' % format['height']
-                format['format'] = '%(format_id)s - %(width)dx%(height)d (%(format_note)s)' % format
+            if fmt.get('vcodec', 'none') != 'none':
+                fmt['format_id'] = '%s%s' % (
+                    fmt['format_id'],
+                    self._next_format_postfix(fmt['format_id']))
+                fmt['format_note'] = '%dp' % fmt['height']
+                fmt['format'] = '%(format_id)s - %(width)dx%(height)d (%(format_note)s)' % fmt
 
         subs = {}
         for lang, subtitle in subtitles.items():
@@ -492,7 +492,7 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
         super(_UglyERRLoginIE, self)._real_initialize()
 
     def _perform_login(self, username, password):
-        if (not self._ERR_LOGIN_SUPPORTED or not username or not password):
+        if not self._ERR_LOGIN_SUPPORTED or not username or not password:
             return
         if self._is_logged_in():
             self.write_debug('Already logged in')
@@ -745,7 +745,7 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
             entries.append(entry)
         if reverse_list:
             entries = list(reversed(entries))
-        # All this reversing is somewhat sloppy and heuristic, but I coudn't
+        # All this reversing is somewhat sloppy and heuristic, but I couldn't
         # quite get my head around how it is supposed to work. However, at this
         # point it should be almost guaranteed that playlist is sorted from
         # oldest to newest.
@@ -977,45 +977,7 @@ class UglyERRTVIE(_UglyERRLoginIE):
             'skip_download': 'm3u8',  # Otherwise fails as fragment too short
         },
     }, {
-        # 2 etvpluss.err.ee
-        'url':
-        'https://etvpluss.err.ee/1203535/bodroe-utro',
-        'md5': '43d59b96b1c5b7da5d3a1ea74089aad2',
-        'info_dict': {
-            'id': '1203535',
-            'display_id': 'bodroe-utro',
-            'ext': 'mp4',
-            'title': 'Бодрое утро - 202012',
-            'series': 'Бодрое утро',
-            'series_type': 1,
-            'season': '202012',
-            'episode_id': '20201210',
-            'thumbnail':
-            'https://s.err.ee/photo/crop/2019/08/26/676848h2901t8.jpg',
-            'description': 'md5:0ff25a30bab46810bafa7c97950de69f',
-            'upload_date': '20201210',
-            'timestamp': 1607605201,
-            'content_type': 'episode',
-            'release_timestamp': 1707367200,
-            'release_date': '20240208',
-            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
-            'geoblocked': False,
-            'drm': False,
-            'media_type': 'video',
-            'subtitles': {
-                'et': [
-                    {'url': r're:^https?://.+\.err\.ee/hls/vod/1143697/2/v/index-f3\.m3u8'},
-                    {'url': r're:^https?://.+\.err\.ee/dash/vod/1143697/2/v/sub-f3\.vtt'},
-                ],
-            },
-        },
-        'params': {
-            'format': 'bestvideo',
-            'noplaylist': True,
-            'skip_download': 'm3u8',  # Otherwise fails as fragment too short
-        },
-    }, {
-        # 3 etv.err.ee playlist
+        # 2 etv.err.ee playlist
         '_type': 'playlist',
         'url':
         'https://etv.err.ee/4x4_tsukotka',
