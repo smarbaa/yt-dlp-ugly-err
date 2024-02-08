@@ -26,7 +26,6 @@ from yt_dlp.utils import (
 
 #   FIXME   No description found
 #           https://r4.err.ee/1609221212/razbor-poljotov
-#   FIXME   Beautify _UglyERRLoginIE
 
 
 def json_find_match(obj, criteria):
@@ -102,6 +101,12 @@ def json_get_value(obj, key, convert=None, default=None):
 
 def string_or_none(v):
     return str(v) if v else None
+
+
+def timestamp_from_date(date_str):
+    date_format = '%d. %B %Y'
+    dt = datetime.strptime(date_str, date_format)
+    return datetime.timestamp(dt)
 
 
 def padding_width(count):
@@ -658,19 +663,19 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                 if mobj and mobj.group('episode'):
                     info['episode'] = sanitize_title(mobj.group('episode'))
                 elif json_has_value(info, 'series'):
-                    mobj = re.match(r'(?:%(series)s|(?:[^.:]*))(?:\.|:)\s*(?P<episode>.*?)\Z' % info, obj['headingFull'])
+                    mobj = re.match(r'(?:%(series)s|(?:[^.:]*))[.:]\s*(?P<episode>.*?)\Z' % info, obj['headingFull'])
                     if mobj and mobj.group('episode'):
                         info['episode'] = sanitize_title(mobj.group('episode'))
                 else:
-                    mobj = re.match(r'[^.:]*(?:\.|:)\s*(?P<episode>.*?)\Z', obj['headingFull'])
+                    mobj = re.match(r'[^.:]*[.:]\s*(?P<episode>.*?)\Z', obj['headingFull'])
                     if mobj and mobj.group('episode'):
                         info['episode'] = sanitize_title(mobj.group('episode'))
             if not json_has_value(info, 'episode') and json_has_value(info, 'series'):
-                mobj = re.match(r'(?:%(series)s|(?:[^.:]*))(?:\.|:)\s*(?P<episode>.*?)\Z' % info, info['title'])
+                mobj = re.match(r'(?:%(series)s|(?:[^.:]*))[.:]\s*(?P<episode>.*?)\Z' % info, info['title'])
                 if mobj and mobj.group('episode'):
                     info['episode'] = sanitize_title(mobj.group('episode'))
             if not json_has_value(info, 'episode'):
-                mobj = re.match(r'[^.:]*(?:\.|:)\s*(?P<episode>.*?)\Z', info['title'])
+                mobj = re.match(r'[^.:]*[.:]\s*(?P<episode>.*?)\Z', info['title'])
                 if mobj and mobj.group('episode'):
                     info['episode'] = sanitize_title(mobj.group('episode'))
             if not json_has_value(info, 'episode') and json_has_value(info, 'series'):
@@ -1472,11 +1477,6 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
         },
     }]
 
-    def _timestamp_from_date(self, date_str):
-        date_format = '%d. %B %Y'
-        dt = datetime.strptime(date_str, date_format)
-        return datetime.timestamp(dt)
-
     def _api_get_series(self, url_dict, playlist_id, limit=100, page=1, sort='old'):
         """
         Posted form controls:
@@ -1534,9 +1534,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
         info['_type'] = 'url'
         info['id'] = list_data.get('url')
         info['media_type'] = list_data.get('type')
-        info['timestamp'] = traverse_obj(list_data, ('date', {str_or_none},
-                                                     {lambda x:
-                                                      self._timestamp_from_date(x)}))
+        info['timestamp'] = traverse_obj(list_data, ('date', {str_or_none}, {timestamp_from_date}))
 
         info['url'] = '%(prefix)s/%(channel)s/vaata/%(id)s' % {
             'prefix': url_dict['prefix'],
@@ -1602,7 +1600,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
                     #   * complex like 'intervjuud/vestlusringid';
                     #   * weird like 'meedia (raadio, tv, press)'.
                     # See e.g. 'https://arhiiv.err.ee/vaata/homme-on-esimene-aprill'
-                    tags = re.sub(r'\(|\)|,|/', ' ', clean_html(value)).split()
+                    tags = re.sub(r'[(),/]', ' ', clean_html(value)).split()
                     if tags:
                         info['tags'] = sorted(
                             map(lambda s: s.strip().lower(), tags))
