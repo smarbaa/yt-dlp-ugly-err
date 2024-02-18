@@ -1305,12 +1305,22 @@ class UglyERRRadioIE(_UglyERRLoginIE):
 
 
 class UglyERRArhiivIE(_UglyERRBaseIE):
+    ## FIXME: urls like https://arhiiv.err.ee/video/patu
+    ##                  https://arhiiv.err.ee/video/vaata/patu
+    ##                  https://arhiiv.err.ee/video/seeria/patu
+    ## and even         https://arhiiv.err.ee/video/seeria/patu-1
+    ## all point to a series.
+    ## But not          https://arhiiv.err.ee/video/seeria/patu-100
+    ##
+    ## Whereas urls like    https://arhiiv.err.ee/video/vaata/patu-1
+    ##                      https://arhiiv.err.ee/video/patu-1
+    ## point to an episode.
+    ## It is not always possible to distinguish between an episode and
+    ## a series just by an url alone.
     IE_DESC = 'arhiiv.err.ee: archived TV and radio shows, movies and documentaries produced in ETV (Estonia)'
     _NETRC_MACHINE = None
-    _ERR_CHANNELS = r'video|audio'
-    _VALID_URL = r'(?P<prefix>(?P<scheme>https?)://arhiiv\.err\.ee)/(?P<channel>%(channels)s)/(?:(?:vaata/(?P<id>[^/#?]*))|(?:(?:seeria/)?(?P<playlist_id>[^/#?]*)))' % {
-        'channels': _ERR_CHANNELS
-    }
+    _VALID_URL = r'(?P<prefix>https?://arhiiv\.err\.ee)/(?P<channel>video|audio)/(?:(?:(?:vaata/)?(?P<id>[^/#?]*?))|(?:seeria/(?P<playlist_id>[^/#?]*?)))$'
+    
     _TESTS = [{
         # 0 a video episode
         'url': 'https://arhiiv.err.ee/video/vaata/eesti-aja-lood-okupatsioonid-muusad-soja-varjus',
@@ -1671,14 +1681,17 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
 
             page = self._download_json(
                 '%(prefix)s/api/v1/content/%(channel)s/%(id)s' % url_dict, video_id)
-            if (url not in self._ERR_URL_SET
-                    and not self._downloader.params.get('noplaylist')
-                    and (playlist_id := traverse_obj(page, ('seriesList', 'seriesUrl')))):
+            playlist_id = traverse_obj(page, ('seriesList', 'seriesUrl'))
+            if ((playlist_id == video_id
+                or not self._downloader.params.get('noplaylist'))
+                and url not in self._ERR_URL_SET):
+                # It's a playlist.
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))
-
-            if not info.get('entries'):
+            else:
+                # It's an episode
                 info.update(self._extract_entry(page, video_id))
+
         else:
             error_msg = 'No id available'
             self.report_warning(error_msg)
