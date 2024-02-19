@@ -30,7 +30,6 @@ All audio, video and subtitle streams that are not DRM-protected can be download
 
 etv, jupiter an jupiterpluss support username/password and netrc based authentication, netrc machine should be err.ee.
 
-
 ## Usage terms and rights of downloaded material
 
 ERR usage terms and rights are explained in [https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine](https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine)
@@ -40,6 +39,8 @@ ERR usage terms and rights are explained in [https://info.err.ee/982667/kasutust
 jupiter.err.ee sometimes gives strange languages for audio streams, and extractor labels them as 'unknown' or 'original'. Unrecognized subtitle language gets labeled 'und' (undetermined). To avoid fixing them later in some other software, one may use extractor arguments 'unknown', 'original' and 'und' to substitute valid language codes for 'unknown', 'original' and/or 'und', e.g.
 
     --extractor-args 'UglyERR:unknown=en;original=et;und=de'
+
+For episodes, the default behaviour is to download also the series they belong to. One can opt out of this by specifying parameter `--no-playlist`, sadly, a much more reasonable opt-in by `--yes-playlist` doesn't work.
 
 ## Usage examples
 
@@ -95,4 +96,8 @@ $ yt-dlp --print filename --print formats_table --print subtitles_table https://
 ## output template. Beware, there are 32 of them!
 
 $ yt-dlp -f 136+ru --sub-langs et --embed-subs --embed-thumbnail --embed-metadata --merge-output-format mkv --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vestlusi-vene-kultuuriloost-juri-lotman
+
+## Download an episode of a series only. Remark the --no-playlist parameter.
+
+$ yt-dlp --no-playlist https://arhiiv.err.ee/video/vaata/patu-1
 ```
