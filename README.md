@@ -28,7 +28,7 @@ All audio, video and subtitle streams that are not DRM-protected can be download
 
 ## Authentication options
 
-etv, jupiter an jupiterpluss support username/password and netrc based authentication, netrc machine should be err.ee.
+etv, jupiter and jupiterpluss support username/password and netrc based authentication, netrc machine should be err.ee.
 
 ## Usage terms and rights of downloaded material
 
@@ -39,6 +39,27 @@ ERR usage terms and rights are explained in [https://info.err.ee/982667/kasutust
 jupiter.err.ee sometimes gives strange languages for audio streams, and extractor labels them as 'unknown' or 'original'. Unrecognized subtitle language gets labeled 'und' (undetermined). To avoid fixing them later in some other software, one may use extractor arguments 'unknown', 'original' and 'und' to substitute valid language codes for 'unknown', 'original' and/or 'und', e.g.
 
     --extractor-args 'UglyERR:unknown=en;original=et;und=de'
+
+## Urls in jupiter.err.ee, jupiterpluss.err.ee and tv and radio portals
+
+Two types of url exist - episode url and series url, and they both look exactly the same.
+
+* Episode  url: https://jupiter.err.ee/video_id/display_id
+* Series  url: https://jupiter.err.ee/playlist_id/display_id
+
+video_id and playlist_id are numerical, display_id is human-readable alphanumerical string with some additional characters allowed.  
+
+Series urls can be found in 
+
+*   https://jupiter.err.ee/saated
+
+or on various category pages like
+
+*    https://jupiter.err.ee/raadioteater
+*    https://jupiter.err.ee/v-saated
+*    https://jupiter.err.ee/sarjad
+
+Episode urls can be found in tv programs and series pages, or directly copied from the player's share link overlay.
 
 ## Usage examples
 
@@ -67,11 +88,7 @@ $ yt-dlp -f 142 --embed-thumbnail --embed-metadata 'https://vikerraadio.err.ee/7
 
 ## Download all episodes.
 
-$ yt-dlp -f bestaudio --embed-thumbnail --embed-metadata --yes-playlist 'https://klassikaraadio.err.ee/arhiiv/album'
-
-## Download all episodes of a podcast this one belongs to.
-
-$ yt-dlp -f bestaudio --embed-thumbnail --embed-metadata --yes-playlist 'https://r4.err.ee/1609221212/razbor-poljotov'
+$ yt-dlp -f bestaudio --embed-thumbnail --embed-metadata 'https://klassikaraadio.err.ee/arhiiv/album'
 
 ## TV, Jupiter, JupiterPluss, ERR Arhiiv
 

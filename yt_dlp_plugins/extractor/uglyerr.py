@@ -134,9 +134,7 @@ class _UglyERRBaseIE(InfoExtractor):
     _ERR_CHANNELS = ''
     _ERR_EXTRACTOR_ARG_PREFIX = 'UglyERR'
     _ERR_TERMS_AND_CONDITIONS_URL = 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine'
-    _VALID_URL = r'(?P<prefix>(?P<protocol>https?)://(?P<channel>%(channels)s).err.ee)/(?P<id>[^/]*)/(?P<display_id>[^/#?]*)' % {
-        'channels': _ERR_CHANNELS
-    }
+    _VALID_URL = ''
     _LANG2ISO639_TBL = {
         'eesti': 'et',
         'vene': 'ru',
@@ -485,7 +483,7 @@ class UglyERRNewsIE(_UglyERRBaseIE):
 class _UglyERRLoginIE(_UglyERRBaseIE):
     _ERR_API_GET_CONTENT = '%(prefix)s/api/tv/getTvPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
-    _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(root_content_id)s&periodStart=0&periodEnd=0&fullData=1'
+    _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(playlist_id)s&periodStart=0&periodEnd=0&fullData=1'
     _ERR_API_SHOWDATA_KEY = 'mainContent'
     _ERR_API_USE_SEASONLIST = False
     _ERR_CHANNELS = r''
@@ -730,7 +728,7 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                         include_root=False, root_data=None,
                         extract_thumbnails=False, extract_medias=False,
                         playlist_data=None):
-        """url_dict should contain root_content_id"""
+        """url_dict should contain playlist_id"""
         info = {}
         reverse_list = True
         if not playlist_data:
@@ -854,16 +852,16 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
             webpage = self._download_webpage(url, playlist_id)
             mobj = re.search(
                 r'<script\s+type=(["\'])text/javascript\1[^>]*>'
-                r'.*?window.rootContentId\s+=\s+(?P<root_content_id>\d+;).*?</script>',
+                r'.*?window.rootContentId\s+=\s+(?P<playlist_id>\d+;).*?</script>',
                 webpage, flags=re.DOTALL)
             if not mobj:
                 mobj = re.search(
-                    r'"rootContentId"\s*:\s*(?P<root_content_id>\d+)\s*,',
+                    r'"rootContentId"\s*:\s*(?P<playlist_id>\d+)\s*,',
                     webpage, flags=re.DOTALL)
             if not mobj:
                 raise ExtractorError('Unable to find playlist\'s numerical id \'rootContentId\'')
-            root_content_id = mobj.group('root_content_id')
-            url_dict['root_content_id'] = root_content_id
+            playlist_id = mobj.group('playlist_id')
+            url_dict['playlist_id'] = playlist_id
             info.update(self._fetch_playlist(
                 url_dict, playlist_id, include_root=True, extract_medias=False, extract_thumbnails=False))
         elif info.get('id'):
@@ -871,30 +869,27 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
             jsonpage = self._api_get_content(url_dict, video_id)
 
             show_data = json_find_value(jsonpage, self._ERR_API_SHOWDATA_KEY)
+            playlist_id = str(json_find_value(show_data, 'rootContentId'))
+            self.to_screen(f'{video_id=}')
+            self.to_screen(f'{playlist_id=}')
 
-            if (url not in self._ERR_URL_SET
-                    and not self._downloader.params.get('noplaylist')
-                    and show_data.get('rootContent')):
-                root_content_id = str(json_find_value(show_data, 'rootContentId'))
-                playlist_data = None
-                if self._ERR_API_USE_SEASONLIST:
-                    playlist_data = json_find_value(jsonpage, 'seasonList')
-                if root_content_id:
-                    url_dict['root_content_id'] = root_content_id
-                    info.update(self._fetch_playlist(
-                        url_dict,
-                        video_id,
-                        include_root=True,
-                        root_data=show_data['rootContent'],
-                        playlist_data=playlist_data))
-
-            if not info.get('entries'):
-                entry = self._extract_entry(show_data, channel=url_dict.get('channel', None))
+            if playlist_id == video_id and url not in self._ERR_URL_SET:
+                # It is a playlist again
+                playlist_data = json_find_value(
+                    jsonpage, 'seasonList') if self._ERR_API_USE_SEASONLIST else None
+                url_dict['playlist_id'] = playlist_id
+                info.update(self._fetch_playlist(
+                    url_dict,
+                    video_id,
+                    include_root=True,
+                    root_data=show_data['rootContent'],
+                    playlist_data=playlist_data))
+            else:
+                # It is an episode
+                entry = self._extract_entry(
+                    show_data, channel=url_dict.get('channel', None))
                 entry.update(self._extract_extra(jsonpage))
-                if json_has_value(info, 'entries'):
-                    info['entries'].append(entry)
-                else:
-                    info.update(entry)
+                info.update(entry)
         else:
             error_msg = 'No id available'
             self.report_warning(error_msg)
@@ -907,7 +902,7 @@ class UglyERRTVIE(_UglyERRLoginIE):
     IE_DESC = 'etv.err.ee, etv2.err.ee, etvpluss.err.ee, lasteekraan.err.ee'
     _ERR_API_GET_CONTENT = '%(prefix)s/api/tv/getTvPageData?contentId=%(id)s'
     _ERR_API_GET_CONTENT_FOR_USER = _ERR_API_GET_CONTENT
-    _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(root_content_id)s&periodStart=0&periodEnd=0&fullData=1'
+    _ERR_API_GET_PARENT_CONTENT = '%(prefix)s/api/tv/getCategoryPastShows?parentContentId=%(playlist_id)s&periodStart=0&periodEnd=0&fullData=1'
     _ERR_API_SHOWDATA_KEY = 'mainContent'
     _ERR_API_USE_SEASONLIST = False
     _ERR_CHANNELS = r'etv|etv2|etvpluss|lasteekraan'
@@ -1057,7 +1052,7 @@ class UglyERRJupiterIE(_UglyERRLoginIE):
         },
     }, {
         # 2 A seasonal playlist
-        'url': 'https://jupiter.err.ee/1128029/riigimehed',
+        'url': 'https://jupiter.err.ee/1133173/riigimehed',
         '_type': 'playlist',
         'info_dict': {
             'id': '1133173',
@@ -1073,7 +1068,7 @@ class UglyERRJupiterIE(_UglyERRLoginIE):
     }, {
         # 3 Another seasonal playlist
         'skip': 'Spare err.ee',
-        'url': 'https://jupiter.err.ee/1608212173/pealtnagija',
+        'url': 'https://jupiter.err.ee/1038446/pealtnagija',
         'md5': 'dd0203a487eb3a15aefdd9ce5132e0c9',
         'info_dict': {
             'id': '1038446',
@@ -1089,7 +1084,7 @@ class UglyERRJupiterIE(_UglyERRLoginIE):
         },
     }, {
         # 4 A shortSeriesList playlist
-        'url': 'https://jupiter.err.ee/949835/alpimaja',
+        'url': 'https://jupiter.err.ee/1038584/alpimaja',
         'md5': 'dd0203a487eb3a15aefdd9ce5132e0c9',
         'info_dict': {
             'id': '1038584',
@@ -1305,22 +1300,9 @@ class UglyERRRadioIE(_UglyERRLoginIE):
 
 
 class UglyERRArhiivIE(_UglyERRBaseIE):
-    ## FIXME: urls like https://arhiiv.err.ee/video/patu
-    ##                  https://arhiiv.err.ee/video/vaata/patu
-    ##                  https://arhiiv.err.ee/video/seeria/patu
-    ## and even         https://arhiiv.err.ee/video/seeria/patu-1
-    ## all point to a series.
-    ## But not          https://arhiiv.err.ee/video/seeria/patu-100
-    ##
-    ## Whereas urls like    https://arhiiv.err.ee/video/vaata/patu-1
-    ##                      https://arhiiv.err.ee/video/patu-1
-    ## point to an episode.
-    ## It is not always possible to distinguish between an episode and
-    ## a series just by an url alone.
     IE_DESC = 'arhiiv.err.ee: archived TV and radio shows, movies and documentaries produced in ETV (Estonia)'
     _NETRC_MACHINE = None
     _VALID_URL = r'(?P<prefix>https?://arhiiv\.err\.ee)/(?P<channel>video|audio)/(?:(?:(?:vaata/)?(?P<id>[^/#?]*?))|(?:seeria/(?P<playlist_id>[^/#?]*?)))$'
-    
     _TESTS = [{
         # 0 a video episode
         'url': 'https://arhiiv.err.ee/video/vaata/eesti-aja-lood-okupatsioonid-muusad-soja-varjus',
