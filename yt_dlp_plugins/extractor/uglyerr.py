@@ -1681,11 +1681,14 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
 
             page = self._download_json(
                 '%(prefix)s/api/v1/content/%(channel)s/%(id)s' % url_dict, video_id)
+            if traverse_obj(page, ('status', 'error')):
+                error_msg = ', '.join(traverse_obj(page, ('status', 'error')))
+                self.report_warning(error_msg)
+                raise ExtractorError(error_msg)
+
             playlist_id = traverse_obj(page, ('seriesList', 'seriesUrl'))
-            if ((playlist_id == video_id
-                or (playlist_id and not self._downloader.params.get('noplaylist')))
-                and url not in self._ERR_URL_SET):
-                # It's a playlist.
+            if playlist_id == video_id and url not in self._ERR_URL_SET:
+                # It's a playlist again.
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))
             else:

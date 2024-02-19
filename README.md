@@ -40,12 +40,10 @@ jupiter.err.ee sometimes gives strange languages for audio streams, and extracto
 
     --extractor-args 'UglyERR:unknown=en;original=et;und=de'
 
-For episodes, the default behaviour is to download also the series they belong to. One can opt out of this by specifying parameter `--no-playlist`, sadly, a much more reasonable opt-in by `--yes-playlist` doesn't work.
-
 ## Usage examples
 
 ```bash
-# Embedded video in a news aricle
+# Embedded video in a news article
 
 ## Print filename and description, list all available formats in
 ## a nicely formatted table.
@@ -97,7 +95,24 @@ $ yt-dlp --print filename --print formats_table --print subtitles_table https://
 
 $ yt-dlp -f 136+ru --sub-langs et --embed-subs --embed-thumbnail --embed-metadata --merge-output-format mkv --output '%(title)s.%(ext)s' https://arhiiv.err.ee/video/vestlusi-vene-kultuuriloost-juri-lotman
 
-## Download an episode of a series only. Remark the --no-playlist parameter.
+## Different variations of urls are supported. E.g.
+## Download an episode of a series only.
 
-$ yt-dlp --no-playlist https://arhiiv.err.ee/video/vaata/patu-1
+$ yt-dlp https://arhiiv.err.ee/video/vaata/patu-1
+
+## or
+
+$ yt-dlp https://arhiiv.err.ee/video/patu-1
+
+## Download all episodes of a series
+
+$ yt-dlp https://arhiiv.err.ee/video/vaata/patu
+
+## or
+
+$ yt-dlp https://arhiiv.err.ee/video/patu
+
+## or
+
+$ yt-dlp https://arhiiv.err.ee/video/seeria/patu
 ```
