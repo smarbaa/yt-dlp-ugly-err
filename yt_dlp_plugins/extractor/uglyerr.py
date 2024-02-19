@@ -1683,7 +1683,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
                 '%(prefix)s/api/v1/content/%(channel)s/%(id)s' % url_dict, video_id)
             playlist_id = traverse_obj(page, ('seriesList', 'seriesUrl'))
             if ((playlist_id == video_id
-                or not self._downloader.params.get('noplaylist'))
+                or (playlist_id and not self._downloader.params.get('noplaylist')))
                 and url not in self._ERR_URL_SET):
                 # It's a playlist.
                 url_dict['playlist_id'] = playlist_id
@@ -1691,7 +1691,6 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
             else:
                 # It's an episode
                 info.update(self._extract_entry(page, video_id))
-
         else:
             error_msg = 'No id available'
             self.report_warning(error_msg)
