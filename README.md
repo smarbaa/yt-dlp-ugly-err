@@ -26,9 +26,48 @@ See [installing yt-dlp plugins](https://github.com/yt-dlp/yt-dlp#installing-plug
 
 All audio, video and subtitle streams that are not DRM-protected can be downloaded, thumbnails and chapters too if available. Series are handled as playlists.
 
+## Supported urls in jupiter.err.ee, jupiterpluss.err.ee and tv and radio portals
+
+Two types of urls exist - episode urls and series urls, and both types look exactly the same.
+Both are supported, but their download behaviour differs somewhat - episode urls cause one item of audio/video to be downloaded, whereas series urls can trigger a whole list of media to be downloaded. So, be careful what you demand yt-dlp to do.
+
+*   Episode  url - https://jupiter.err.ee/video_id/display_id
+*   Series  url - https://jupiter.err.ee/playlist_id/display_id
+
+video_id and playlist_id are numerical, display_id is human-readable alphanumerical string with some additional characters allowed.
+
+Series urls can be found in
+
+*   https://jupiter.err.ee/saated
+
+or on various category pages like
+
+*   https://jupiter.err.ee/raadioteater
+*   https://jupiter.err.ee/v-saated
+*   https://jupiter.err.ee/sarjad
+
+etc. Episode urls can be found in tv programs and series pages, or directly copied from the player's share link overlay.
+
+## Supported urls in arhiiv.err.ee
+
+Again, there are two types of urls - episode and series urls. Both types are supported and the behaviour of yt-dlp varies according to the type - episode urls trigger single downloads, series urls may cause multiple files to be downloaded.
+
+*   Episode url
+    *   https://arhiiv.err.ee/video/vaata/video_id
+    *   https://arhiiv.err.ee/video/video_id
+    *   https://arhiiv.err.ee/guid/VERYLONGID
+
+*   Series url
+    *   https://arhiiv.err.ee/video/vaata/series_id
+    *   https://arhiiv.err.ee/video/series_id
+    *   https://arhiiv.err.ee/video/seeria/series_id
+
+'Audio urls' work the same, only substitute audio for video in the above description.
+
+
 ## Authentication options
 
-etv, jupiter and jupiterpluss support username/password and netrc based authentication, netrc machine should be err.ee.
+etv, jupiter and jupiterpluss support username/password and netrc based authentication, netrc machine should be err.ee. See [authentication with netrc](https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#authentication-with-netrc) for further details. 
 
 ## Usage terms and rights of downloaded material
 
@@ -39,27 +78,6 @@ ERR usage terms and rights are explained in [https://info.err.ee/982667/kasutust
 jupiter.err.ee sometimes gives strange languages for audio streams, and extractor labels them as 'unknown' or 'original'. Unrecognized subtitle language gets labeled 'und' (undetermined). To avoid fixing them later in some other software, one may use extractor arguments 'unknown', 'original' and 'und' to substitute valid language codes for 'unknown', 'original' and/or 'und', e.g.
 
     --extractor-args 'UglyERR:unknown=en;original=et;und=de'
-
-## Urls in jupiter.err.ee, jupiterpluss.err.ee and tv and radio portals
-
-Two types of url exist - episode url and series url, and they both look exactly the same.
-
-* Episode  url: https://jupiter.err.ee/video_id/display_id
-* Series  url: https://jupiter.err.ee/playlist_id/display_id
-
-video_id and playlist_id are numerical, display_id is human-readable alphanumerical string with some additional characters allowed.  
-
-Series urls can be found in 
-
-*   https://jupiter.err.ee/saated
-
-or on various category pages like
-
-*    https://jupiter.err.ee/raadioteater
-*    https://jupiter.err.ee/v-saated
-*    https://jupiter.err.ee/sarjad
-
-Episode urls can be found in tv programs and series pages, or directly copied from the player's share link overlay.
 
 ## Usage examples
 
