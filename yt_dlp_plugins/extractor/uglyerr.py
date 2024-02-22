@@ -215,7 +215,7 @@ class _UglyERRBaseIE(InfoExtractor):
                     fmt['format_note'] = 'Eesti vaegnägijatele'
 
                 lst = self._configuration_arg(fmt['language'], ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
-                if len(lst) > 0:
+                if lst:
                     fmt['language'] = str(lst[0])
 
                 fmt['format_id'] = '%s%s' % (
@@ -235,7 +235,7 @@ class _UglyERRBaseIE(InfoExtractor):
         for lang, subtitle in subtitles.items():
             lang = 'et_hearing_impaired' if lang == 'und' else lang
             lst = self._configuration_arg(lang.lower(), ie_key=self._ERR_EXTRACTOR_ARG_PREFIX)
-            lang = lst[0] if len(lst) > 0 else lang
+            lang = lst[0] if lst else lang
             subs[lang] = subtitle
 
         return formats, subs
@@ -820,8 +820,8 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                         if 'active' not in month:
                             udict = url_dict.copy()
                             udict['id'] = month['firstContentId']
-                            jsonpage = self._api_get_content(udict, video_id)
-                            month = json_find_match(jsonpage, month)
+                            page = self._api_get_content(udict, video_id)
+                            month = json_find_match(page, month)
                         for item in month['contents']:
                             yield item
             elif playlist_data['type'] in ['shortSeriesList', 'seasonal']:
@@ -829,8 +829,8 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                     if 'contents' not in season:
                         udict = url_dict.copy()
                         udict['id'] = season['firstContentId']
-                        jsonpage = self._api_get_content(udict, video_id)
-                        season = json_find_match(jsonpage, season)
+                        page = self._api_get_content(udict, video_id)
+                        season = json_find_match(page, season)
                     for item in season['contents']:
                         yield item
 
@@ -866,17 +866,16 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                 url_dict, playlist_id, include_root=True, extract_medias=False, extract_thumbnails=False))
         elif info.get('id'):
             video_id = info['id']
-            jsonpage = self._api_get_content(url_dict, video_id)
-
-            show_data = json_find_value(jsonpage, self._ERR_API_SHOWDATA_KEY)
+            page = self._api_get_content(url_dict, video_id)
+            show_data = json_find_value(page, self._ERR_API_SHOWDATA_KEY)
             playlist_id = str(json_find_value(show_data, 'rootContentId'))
-            self.to_screen(f'{video_id=}')
-            self.to_screen(f'{playlist_id=}')
-
-            if playlist_id == video_id and url not in self._ERR_URL_SET:
+            force_playlist = True if self._configuration_arg(
+                'yes_playlist', ie_key=self._ERR_EXTRACTOR_ARG_PREFIX) else False
+            if playlist_id and (
+                    playlist_id == video_id or force_playlist) and url not in self._ERR_URL_SET:
                 # It is a playlist again
                 playlist_data = json_find_value(
-                    jsonpage, 'seasonList') if self._ERR_API_USE_SEASONLIST else None
+                    page, 'seasonList') if self._ERR_API_USE_SEASONLIST else None
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(
                     url_dict,
@@ -888,7 +887,7 @@ class _UglyERRLoginIE(_UglyERRBaseIE):
                 # It is an episode
                 entry = self._extract_entry(
                     show_data, channel=url_dict.get('channel', None))
-                entry.update(self._extract_extra(jsonpage))
+                entry.update(self._extract_extra(page))
                 info.update(entry)
         else:
             error_msg = 'No id available'
@@ -1669,7 +1668,10 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
                 raise ExtractorError(error_msg)
 
             playlist_id = traverse_obj(page, ('seriesList', 'seriesUrl'))
-            if playlist_id == video_id and url not in self._ERR_URL_SET:
+            force_playlist = True if self._configuration_arg(
+                'yes_playlist', ie_key=self._ERR_EXTRACTOR_ARG_PREFIX) else False
+            if playlist_id and (
+                    playlist_id == video_id or force_playlist) and url not in self._ERR_URL_SET:
                 # It's a playlist again.
                 url_dict['playlist_id'] = playlist_id
                 info.update(self._fetch_playlist(url_dict, playlist_id))

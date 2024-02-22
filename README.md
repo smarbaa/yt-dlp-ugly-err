@@ -32,9 +32,9 @@ Two types of urls exist - episode urls and series urls, and both types look exac
 Both are supported, but their download behaviour differs somewhat - episode urls cause one item of audio/video to be downloaded, whereas series urls can trigger a whole list of media to be downloaded. So, be careful what you demand yt-dlp to do.
 
 *   Episode  url - https://jupiter.err.ee/video_id/display_id
-*   Series  url - https://jupiter.err.ee/playlist_id/display_id
+*   Series  url - https://jupiter.err.ee/series_id/display_id
 
-video_id and playlist_id are numerical, display_id is human-readable alphanumerical string with some additional characters allowed.
+video_id and series_id are numerical, display_id is human-readable alphanumerical string with some additional characters allowed.
 
 Series urls can be found in
 
@@ -64,6 +64,22 @@ Again, there are two types of urls - episode and series urls. Both types are sup
 
 'Audio urls' work the same, only substitute audio for video in the above description.
 
+## Extractor arguments
+
+Yt-dlp accepts special arguments per extractor or extractor group, see [extractor arguments](https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#extractor-arguments) for more details. UglyERR supports following extractor arguments: 
+
+*   `unknown`
+*   `und`
+*   `original`
+*   `yes-playlist`
+
+The first three, i.e. `unknown`, `und` and `original`, may come in useful when dealing with audio and subtitle languages, see [known problems](#known-problems) for examples. `yes-playlist` can be used to force downloading a series when only an episode url is given.
+
+```bash
+# Download first five episodes of a series. Without yes-playlist one would get only a single episode.
+
+$ yt-dlp --playlist-items 1:6 --extractor-args 'UglyERR:yes-playlist' https://arhiiv.err.ee/audio/vaata/eesti-lugu-eesti-lugu-1-ajalugu-ja-muudid
+```
 
 ## Authentication options
 
