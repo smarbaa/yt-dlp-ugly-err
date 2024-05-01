@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 
 import re
-import locale
 import json
 
 from math import log10, floor, ceil
@@ -104,10 +103,23 @@ def string_or_none(v):
 
 
 def timestamp_from_date(date_str):
-    date_format = '%d. %B %Y'
-    dt = datetime.strptime(date_str, date_format)
-    return datetime.timestamp(dt)
-
+    months = {'jaanuar': 1,
+              'veebruar': 2,
+              'märts': 3,
+              'aprill': 4,
+              'mai': 5,
+              'juuni': 6,
+              'juuli': 7,
+              'august': 8,
+              'september': 9,
+              'oktoober': 10,
+              'november': 11,
+              'detsember': 12, }
+    # date_format = '%d. %B %Y'
+    m = re.search(r'(\d+)\.\s+(\w+)\s+(\d{4})', date_str)
+    if not m:
+        raise ValueError
+    return datetime.timestamp(datetime(m[3], months[m[2]], m[1]))
 
 def padding_width(count):
     """Returns number of positions needed to format indexes <= count."""
@@ -167,9 +179,6 @@ class _UglyERRBaseIE(InfoExtractor):
     _ERR_FORMAT_COUNTERS = {}
     _ERR_URL_SET = set()
     _ERR_HEADERS = {}
-
-    def _real_initialize(self):
-        locale.setlocale(locale.LC_TIME, 'et_EE.UTF-8')
 
     @staticmethod
     def _lang_to_iso639(lang):
@@ -1233,39 +1242,7 @@ class UglyERRRadioIE(_UglyERRLoginIE):
             'noplaylist': True,
         },
     }, {
-        # 2 r2.err.ee
-        'url':
-        'https://r2.err.ee/1608243180/kuuldemang-hannes-hamburg-kulupoletajad',
-        'md5': 'd21ec36fec8d12c1c76c028501d2b415',
-        'info_dict': {
-            'id': '1608243180',
-            'display_id': 'kuuldemang-hannes-hamburg-kulupoletajad',
-            'ext': 'mp4',
-            'title': 'Kuuldem\xe4ng - 202106 - Hannes Hamburg Kulupõletajad',
-            'episode': 'Hannes Hamburg Kulupõletajad',
-            'episode_id': '20210615',
-            'series': 'Kuuldemäng',
-            'thumbnail':
-            'https://s.err.ee/photo/crop/2014/06/28/439219h8c05t8.jpg',
-            'description': 'md5:f7e2b072889ef84beb06f792d2eeb1d9',
-            'upload_date': '20210615',
-            'timestamp': 1623744000,
-            'content_type': 'episode',
-            'series_type': 1,
-            'geoblocked': False,
-            'season': '202106',
-            'release_date': '20210620',
-            'drm': False,
-            'license': 'https://info.err.ee/982667/kasutustingimused-ja-kommenteerimine',
-            'media_type': 'audio',
-            'release_timestamp': 1624161600,
-        },
-        'params': {
-            'format': 'worstaudio',
-            'noplaylist': True,
-        },
-    }, {
-        # 3 r4.err.ee
+        # 2 r4.err.ee
         'url': 'https://r4.err.ee/1608218368/razbor-poljotov',
         'md5': 'c7554f8fc4a05997bb50dc038eb68624',
         'info_dict': {
@@ -1312,7 +1289,7 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
             'ext': 'mp4',
             'title': 'Eesti aja lood. Okupatsioonid - 68 - Muusad sõja varjus',
             'thumbnail':
-            'https://arhiiv-images.err.ee/thumbnails/2009-002267-0068_0001_D10_EESTI-AJA-LOOD-OKUPATSIOONID.jpg',
+            'https://arhiiv-images.err.ee/thumbnails/2009/2009-002267-0068_0001_D10_EESTI-AJA-LOOD-OKUPATSIOONID_20240404152529.jpg',
             'description': 'md5:36772936a0982571ce23aa0dad1f6231',
             'upload_date': '20091025',
             'timestamp': 1256428800,
@@ -1374,7 +1351,6 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
             'media_type': 'audio',
             'series': 'Linnulaul',
             'episode': 'LINNULAUL 34. Rukkirääk',
-            'creator': 'Jüssi Fred (Esineja)',
             'series_id': 20876,
             'upload_date': '20020530',
             'duration': 69.0,
@@ -1575,6 +1551,8 @@ class UglyERRArhiivIE(_UglyERRBaseIE):
             for prop in traverse_metadata(page.get('metadata')):
                 label = prop['label'].strip()
                 value = prop['value'].strip()
+                if not value:
+                    continue
                 if label.endswith('Sarja pealkiri'):
                     info['series'] = value
                 elif label.endswith('Pealkiri'):
