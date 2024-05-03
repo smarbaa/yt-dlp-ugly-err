@@ -117,9 +117,10 @@ def timestamp_from_date(date_str):
               'detsember': 12, }
     # date_format = '%d. %B %Y'
     m = re.search(r'(\d+)\.\s+(\w+)\s+(\d{4})', date_str)
-    if not m:
+    if not m or m[2] not in months:
         raise ValueError
     return datetime.timestamp(datetime(m[3], months[m[2]], m[1]))
+
 
 def padding_width(count):
     """Returns number of positions needed to format indexes <= count."""
